@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "VidGro",
+    "slug": "vidgro-watch",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "vidgro",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "assets/images/icon.png",
+    "splash": {
+      "image": "assets/images/flash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF",
+      "hideExponentText": true
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "assets/images/icon.png",
+        "backgroundColor": "#0F172A"
+      },
+      "package": "com.zozo1.vidgrowatch"
+    },
+    "web": {
+      "bundler": "webpack",
+      "output": "single"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

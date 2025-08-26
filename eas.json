@@ -1,0 +1,44 @@
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "bundleIdentifier": "com.vidgro.watch"
+      }
+    },
+    "production-obfuscated": {
+      "extends": "production",
+      "env": {
+        "NODE_ENV": "production",
+        "ENABLE_OBFUSCATION": "true"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

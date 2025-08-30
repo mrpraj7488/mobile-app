@@ -1,12 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions, Platform, Alert } from 'react-native';
-
-// Disable all Alert.alert globally
-Alert.alert = () => {};
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
 // Get screen dimensions
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -32,8 +29,9 @@ const responsiveFont = (size: number) => {
   return Platform.OS === 'android' ? fontSize * 0.95 : fontSize;
 };
 
-export default function SplashScreen() {
-  const { user, loading } = useAuth();
+// Wrapper component that handles auth context safely
+function SplashScreenContent() {
+  const { user, profile, loading } = useAuth();
   const { isDark } = useTheme();
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -43,35 +41,34 @@ export default function SplashScreen() {
 
   // Logo and text animation with staggered timing
   useEffect(() => {
-    // Logo animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
+    // Single smooth animation sequence
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(textFadeAnim, {
         toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 4,
-        tension: 40,
+        duration: 300,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Text animation with delay
-    Animated.timing(textFadeAnim, {
-      toValue: 1,
-      duration: 500,
-      delay: 300,
-      useNativeDriver: true,
-    }).start();
-
-    // Infinite rotation for loading indicator
+    // Smooth loading indicator
     Animated.loop(
       Animated.timing(spinValue, {
         toValue: 1,
-        duration: 1500,
-        easing: Easing.linear,
+        duration: 2000,
+        easing: Easing.bezier(0.4, 0, 0.6, 1),
         useNativeDriver: true,
       })
     ).start();
@@ -79,13 +76,25 @@ export default function SplashScreen() {
 
   useEffect(() => {
     if (!loading) {
-      if (user) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/(auth)/login');
-      }
+      // Add smooth transition delay
+      const timer = setTimeout(() => {
+        if (user && profile) {
+          router.replace('/(tabs)');
+        } else if (user && !profile) {
+          // Give profile loading more time for new users (especially Google Auth)
+          const profileTimer = setTimeout(() => {
+            // Proceed to app even if profile isn't loaded yet
+            router.replace('/(tabs)');
+          }, 3000); // Increased timeout for Google Auth profile creation
+          return () => clearTimeout(profileTimer);
+        } else if (!user) {
+          router.replace('/(auth)/login');
+        }
+      }, 800); // Smooth transition delay
+      
+      return () => clearTimeout(timer);
     }
-  }, [user, loading, router]);
+  }, [user, profile, loading, router]);
 
   const spin = spinValue.interpolate({
     inputRange: [0, 1],
@@ -197,6 +206,54 @@ export default function SplashScreen() {
       </View>
     </LinearGradient>
   );
+}
+
+// Error boundary wrapper for the splash screen
+export default function SplashScreen() {
+  const [hasError, setHasError] = useState(false);
+
+  // Fallback UI if auth context is not available - respects system theme
+  if (hasError) {
+    const systemIsDark = true; // Default to dark for error fallback
+    return (
+      <LinearGradient
+        colors={systemIsDark ? ['#0F172A', '#1E293B'] : ['#F8FAFC', '#FFFFFF']}
+        style={styles.container}
+      >
+        <View style={styles.contentWrapper}>
+          <View style={styles.content}>
+            <Image 
+              source={require('../assets/images/flash-icon.png')} 
+              style={[styles.logo, { width: 120, height: 120, marginBottom: 20 }]}
+              resizeMode="contain"
+            />
+            <Text style={[styles.appName, { 
+              color: systemIsDark ? 'white' : '#1E293B', 
+              fontSize: 32, 
+              marginBottom: 30 
+            }]}>
+              VidGro
+            </Text>
+            <View style={styles.loadingContainer}>
+              <Text style={[styles.loadingText, { 
+                color: systemIsDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(30, 41, 59, 0.7)', 
+                fontSize: 14 
+              }]}>
+                Initializing...
+              </Text>
+            </View>
+          </View>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  try {
+    return <SplashScreenContent />;
+  } catch (error) {
+    setHasError(true);
+    return null;
+  }
 }
 
 const styles = StyleSheet.create({

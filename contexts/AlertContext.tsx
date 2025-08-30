@@ -47,13 +47,12 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   } = useCustomAlert();
 
   const wrappedShowError = (title: string, message: string) => {
-    console.log('🔔 AlertProvider: showError called with:', title, message);
-    console.log('🔔 AlertProvider: alertProps.visible =', alertProps.visible);
+
     showError(title, message);
   };
 
   const wrappedShowSuccess = (title: string, message: string, autoClose?: boolean) => {
-    console.log('🔔 AlertProvider: showSuccess called with:', title, message);
+    
     showSuccess(title, message, autoClose);
   };
 

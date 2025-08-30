@@ -14,7 +14,8 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Search, Bug, Wifi, Play, Coins, Crown, Shield, RefreshCw, Smartphone, TriangleAlert as AlertTriangle, Send, ChevronRight, Clock, Database, Settings, Eye, Volume2 } from 'lucide-react-native';
+import { Search, Bug, Wifi, Play, Coins, Crown, Shield, RefreshCw, Smartphone, TriangleAlert as AlertTriangle, Send, ChevronRight, Clock, Database, Settings, Eye, Volume2 } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import * as Haptics from 'expo-haptics';
 import BugReportService from '@/services/BugReportService';
 
@@ -46,10 +47,10 @@ export default function ReportProblemScreen() {
 
   const categories = [
     { id: 'all', title: 'All Issues', icon: Bug },
-    { id: 'video', title: 'Video', icon: Play },
+    { id: 'video', title: 'Videos', icon: Play },
     { id: 'coins', title: 'Coins', icon: Coins },
     { id: 'account', title: 'Account', icon: Crown },
-    { id: 'connection', title: 'Network', icon: Wifi },
+    { id: 'ads', title: 'Ads', icon: Eye },
     { id: 'performance', title: 'Performance', icon: RefreshCw },
   ];
 
@@ -57,159 +58,204 @@ export default function ReportProblemScreen() {
     // Critical Issues
     {
       id: 'app-crash',
-      title: 'App Crashes',
-      description: 'App suddenly closes or freezes',
+      title: 'App Crashes or Freezes',
+      description: 'VidGro app suddenly closes or becomes unresponsive',
       icon: AlertTriangle,
       color: '#E74C3C',
       category: 'critical',
-      keywords: ['crash', 'freeze', 'close', 'stop', 'exit', 'quit']
+      keywords: ['crash', 'freeze', 'close', 'stop', 'exit', 'quit', 'unresponsive']
     },
     {
       id: 'login-failed',
-      title: 'Cannot Login',
-      description: 'Unable to sign in to account',
+      title: 'Cannot Sign In',
+      description: 'Unable to access VidGro account with email/password',
       icon: Shield,
       color: '#E74C3C',
       category: 'critical',
-      keywords: ['login', 'signin', 'password', 'account', 'access']
+      keywords: ['login', 'signin', 'password', 'account', 'access', 'authentication']
     },
     {
       id: 'coins-missing',
-      title: 'Coins Not Added',
-      description: 'Purchased coins not showing in balance',
+      title: 'Purchased Coins Missing',
+      description: 'Bought coins not appearing in VidGro balance',
       icon: Coins,
       color: '#E74C3C',
       category: 'critical',
-      keywords: ['coins', 'purchase', 'balance', 'missing', 'payment']
+      keywords: ['coins', 'purchase', 'balance', 'missing', 'payment', 'buy']
     },
 
-    // Video Issues
+    // Video & Promotion Issues
     {
       id: 'video-not-loading',
-      title: 'Videos Not Loading',
-      description: 'Videos fail to play or load',
+      title: 'Videos Not Playing',
+      description: 'Cannot watch videos to earn coins in VidGro',
       icon: Play,
       color: '#F39C12',
       category: 'common',
-      keywords: ['video', 'play', 'load', 'stream', 'watch']
+      keywords: ['video', 'play', 'load', 'stream', 'watch', 'earn']
     },
     {
-      id: 'video-stuck',
-      title: 'Video Stuck/Buffering',
-      description: 'Videos keep buffering or get stuck',
-      icon: Clock,
+      id: 'promotion-not-working',
+      title: 'Video Promotion Failed',
+      description: 'My video is not getting promoted after spending coins',
+      icon: RefreshCw,
       color: '#F39C12',
       category: 'common',
-      keywords: ['buffer', 'stuck', 'loading', 'slow', 'lag']
+      keywords: ['promotion', 'promote', 'views', 'boost', 'campaign', 'video']
     },
     {
-      id: 'no-sound',
-      title: 'No Audio/Sound',
-      description: 'Videos play without sound',
-      icon: Volume2,
+      id: 'upload-failed',
+      title: 'Cannot Upload Video',
+      description: 'Unable to upload my video for promotion',
+      icon: Database,
       color: '#F39C12',
       category: 'common',
-      keywords: ['sound', 'audio', 'volume', 'mute', 'silent']
+      keywords: ['upload', 'video', 'file', 'submit', 'add', 'promote']
     },
 
-    // Coin Issues
+    // Coin & Reward Issues
     {
       id: 'coins-not-earned',
-      title: 'Coins Not Earned',
-      description: 'Not receiving coins after watching videos',
+      title: 'Not Earning Coins',
+      description: 'Not receiving coins after watching ads in VidGro',
       icon: Coins,
       color: '#F39C12',
       category: 'common',
-      keywords: ['coins', 'earn', 'reward', 'watch', 'not receiving']
+      keywords: ['coins', 'earn', 'reward', 'watch', 'ads', 'not receiving']
     },
     {
-      id: 'wrong-coin-amount',
-      title: 'Wrong Coin Amount',
-      description: 'Receiving incorrect coin rewards',
-      icon: Database,
+      id: 'referral-not-credited',
+      title: 'Referral Bonus Missing',
+      description: 'Did not receive 500 coins for friend referral',
+      icon: Coins,
+      color: '#F39C12',
+      category: 'common',
+      keywords: ['referral', 'bonus', 'coins', 'friend', 'invite', 'reward']
+    },
+    {
+      id: 'daily-limit-wrong',
+      title: 'Daily Limit Issue',
+      description: 'Daily coin earning limit not working correctly',
+      icon: Clock,
       color: '#3498DB',
       category: 'minor',
-      keywords: ['coins', 'amount', 'wrong', 'incorrect', 'calculation']
+      keywords: ['daily', 'limit', 'coins', 'cap', 'maximum', 'earn']
     },
 
-    // Account Issues
+    // Account & VIP Issues
     {
-      id: 'vip-not-working',
-      title: 'VIP Features Not Working',
-      description: 'VIP benefits not applying correctly',
+      id: 'vip-not-active',
+      title: 'VIP Status Not Active',
+      description: 'Purchased VIP membership not showing as active',
+      icon: Crown,
+      color: '#800080',
+      category: 'critical',
+      keywords: ['vip', 'premium', 'membership', 'purchase', 'active', 'status']
+    },
+    {
+      id: 'vip-benefits-missing',
+      title: 'VIP Benefits Not Applied',
+      description: 'Not receiving 2x coins or 50% discount on promotions',
       icon: Crown,
       color: '#800080',
       category: 'common',
-      keywords: ['vip', 'premium', 'benefits', 'discount', 'features']
+      keywords: ['vip', 'benefits', 'discount', 'double', 'coins', 'promotion']
     },
     {
-      id: 'profile-sync',
-      title: 'Profile Not Syncing',
-      description: 'Profile data not updating across devices',
-      icon: RefreshCw,
-      color: '#3498DB',
-      category: 'minor',
-      keywords: ['profile', 'sync', 'update', 'data', 'device']
-    },
-
-    // Network Issues
-    {
-      id: 'connection-error',
-      title: 'Connection Problems',
-      description: 'Internet connectivity issues',
-      icon: Wifi,
-      color: '#E74C3C',
-      category: 'common',
-      keywords: ['connection', 'internet', 'network', 'offline', 'wifi']
-    },
-    {
-      id: 'slow-loading',
-      title: 'Slow Loading',
-      description: 'App or content loads very slowly',
-      icon: Clock,
-      color: '#F39C12',
-      category: 'minor',
-      keywords: ['slow', 'loading', 'speed', 'performance', 'lag']
-    },
-
-    // Performance Issues
-    {
-      id: 'app-slow',
-      title: 'App Running Slow',
-      description: 'Overall app performance is sluggish',
-      icon: Smartphone,
-      color: '#F39C12',
-      category: 'minor',
-      keywords: ['slow', 'performance', 'lag', 'sluggish', 'speed']
-    },
-    {
-      id: 'battery-drain',
-      title: 'High Battery Usage',
-      description: 'App drains battery quickly',
+      id: 'profile-update-failed',
+      title: 'Cannot Update Profile',
+      description: 'Unable to change profile information or settings',
       icon: Settings,
       color: '#3498DB',
       category: 'minor',
-      keywords: ['battery', 'drain', 'power', 'usage', 'consumption']
+      keywords: ['profile', 'update', 'settings', 'change', 'edit', 'save']
     },
 
-    // UI Issues
+    // Ad & Earning Issues
     {
-      id: 'display-issues',
-      title: 'Display Problems',
-      description: 'UI elements not showing correctly',
+      id: 'ads-not-loading',
+      title: 'Ads Not Loading',
+      description: 'Cannot watch ads to earn coins',
       icon: Eye,
-      color: '#3498DB',
-      category: 'minor',
-      keywords: ['display', 'ui', 'interface', 'layout', 'visual']
-    },
-    {
-      id: 'touch-not-working',
-      title: 'Touch Not Responsive',
-      description: 'Buttons or touch gestures not working',
-      icon: Smartphone,
       color: '#F39C12',
       category: 'common',
-      keywords: ['touch', 'tap', 'button', 'gesture', 'responsive']
+      keywords: ['ads', 'advertisement', 'loading', 'watch', 'earn', 'coins']
+    },
+    {
+      id: 'ad-rewards-missing',
+      title: 'Ad Rewards Not Given',
+      description: 'Watched full ad but did not receive coins',
+      icon: AlertTriangle,
+      color: '#E74C3C',
+      category: 'common',
+      keywords: ['ad', 'reward', 'coins', 'watch', 'complete', 'missing']
+    },
+    {
+      id: 'ad-stuck',
+      title: 'Ad Stuck or Frozen',
+      description: 'Advertisement freezes and cannot be closed',
+      icon: Clock,
+      color: '#F39C12',
+      category: 'common',
+      keywords: ['ad', 'stuck', 'freeze', 'frozen', 'close', 'exit']
+    },
+
+    // Performance & Technical Issues
+    {
+      id: 'app-slow',
+      title: 'App Running Slowly',
+      description: 'VidGro app is laggy or unresponsive',
+      icon: Smartphone,
+      color: '#F39C12',
+      category: 'minor',
+      keywords: ['slow', 'performance', 'lag', 'sluggish', 'speed', 'responsive']
+    },
+    {
+      id: 'battery-drain',
+      title: 'Excessive Battery Usage',
+      description: 'VidGro draining battery faster than expected',
+      icon: Settings,
+      color: '#3498DB',
+      category: 'minor',
+      keywords: ['battery', 'drain', 'power', 'usage', 'consumption', 'energy']
+    },
+    {
+      id: 'storage-full',
+      title: 'Storage Issues',
+      description: 'App taking too much storage space',
+      icon: Database,
+      color: '#3498DB',
+      category: 'minor',
+      keywords: ['storage', 'space', 'memory', 'cache', 'data', 'full']
+    },
+
+    // Payment & Purchase Issues
+    {
+      id: 'payment-failed',
+      title: 'Payment Failed',
+      description: 'Cannot complete coin or VIP purchase',
+      icon: AlertTriangle,
+      color: '#E74C3C',
+      category: 'critical',
+      keywords: ['payment', 'purchase', 'buy', 'transaction', 'failed', 'error']
+    },
+    {
+      id: 'wrong-charge',
+      title: 'Incorrect Charge Amount',
+      description: 'Charged wrong amount for coins or VIP',
+      icon: Coins,
+      color: '#E74C3C',
+      category: 'critical',
+      keywords: ['charge', 'amount', 'wrong', 'incorrect', 'payment', 'price']
+    },
+    {
+      id: 'refund-request',
+      title: 'Need Refund',
+      description: 'Request refund for accidental purchase',
+      icon: RefreshCw,
+      color: '#F39C12',
+      category: 'common',
+      keywords: ['refund', 'money', 'back', 'return', 'cancel', 'purchase']
     },
   ];
 
@@ -228,11 +274,11 @@ export default function ReportProblemScreen() {
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(issue => {
         switch (selectedCategory) {
-          case 'video': return issue.keywords.some(k => ['video', 'play', 'stream', 'watch', 'buffer'].includes(k));
-          case 'coins': return issue.keywords.some(k => ['coins', 'earn', 'reward', 'payment', 'balance'].includes(k));
-          case 'account': return issue.keywords.some(k => ['account', 'profile', 'vip', 'login', 'signin'].includes(k));
-          case 'connection': return issue.keywords.some(k => ['connection', 'network', 'wifi', 'internet', 'offline'].includes(k));
-          case 'performance': return issue.keywords.some(k => ['slow', 'performance', 'lag', 'speed', 'battery'].includes(k));
+          case 'video': return issue.keywords.some(k => ['video', 'play', 'stream', 'watch', 'upload', 'promotion', 'promote'].includes(k));
+          case 'coins': return issue.keywords.some(k => ['coins', 'earn', 'reward', 'payment', 'balance', 'referral', 'bonus'].includes(k));
+          case 'account': return issue.keywords.some(k => ['account', 'profile', 'vip', 'login', 'signin', 'membership', 'settings'].includes(k));
+          case 'ads': return issue.keywords.some(k => ['ads', 'ad', 'advertisement', 'watch', 'reward'].includes(k));
+          case 'performance': return issue.keywords.some(k => ['slow', 'performance', 'lag', 'speed', 'battery', 'storage', 'cache'].includes(k));
           default: return true;
         }
       });
@@ -271,16 +317,16 @@ export default function ReportProblemScreen() {
     
     try {
       const response = await BugReportService.submitBugReport({
-        title: issue.title,
-        description: issue.description,
+        title: `VidGro: ${issue.title}`,
+        description: `User reported: ${issue.description}\n\nApp Version: 1.0.0\nPlatform: ${Platform.OS}`,
         priority: issue.category === 'critical' ? 'critical' : issue.category === 'common' ? 'medium' : 'low',
         category: 'Mobile App Technical',
         issue_type: 'technical'
       });
 
       showSuccess(
-        'Report Submitted',
-        `Your report for "${issue.title}" has been submitted successfully. Our technical team will investigate this issue.\n\nTicket ID: ${response.bug_id}\n\nExpected response time: ${response.estimated_response_time}`
+        'Report Submitted Successfully',
+        `Thank you for reporting this issue. Our VidGro support team will investigate and respond promptly.\n\nTicket ID: ${response.bug_id}\n\nExpected response: ${response.estimated_response_time}`
       );
       
       setTimeout(() => {
@@ -288,7 +334,7 @@ export default function ReportProblemScreen() {
         router.back();
       }, 2000);
     } catch (error) {
-      console.error('Error submitting bug report:', error);
+      
       showError(
         'Submission Failed',
         'There was an error submitting your bug report. Please check your internet connection and try again.'
@@ -312,16 +358,16 @@ export default function ReportProblemScreen() {
     
     try {
       const response = await BugReportService.submitBugReport({
-        title: 'Custom Technical Issue',
-        description: customDescription,
+        title: 'VidGro: Custom Issue Report',
+        description: `User description: ${customDescription}\n\nApp Version: 1.0.0\nPlatform: ${Platform.OS}`,
         priority: 'medium',
         category: 'Mobile App Technical',
-        issue_type: 'technical'
+        issue_type: 'custom'
       });
 
       showSuccess(
-        'Custom Report Submitted',
-        `Your detailed technical report has been submitted successfully.\n\nTicket ID: ${response.bug_id}\n\nOur technical team will review your description and respond within ${response.estimated_response_time}.`
+        'Report Submitted Successfully',
+        `Thank you for the detailed report. Our VidGro support team will review and respond soon.\n\nTicket ID: ${response.bug_id}\n\nExpected response: ${response.estimated_response_time}`
       );
       
       setTimeout(() => {
@@ -329,7 +375,7 @@ export default function ReportProblemScreen() {
         router.back();
       }, 2000);
     } catch (error) {
-      console.error('Error submitting custom bug report:', error);
+      
       showError(
         'Submission Failed',
         'There was an error submitting your bug report. Please check your internet connection and try again.'
@@ -344,7 +390,7 @@ export default function ReportProblemScreen() {
       case 'video': return '#E74C3C';
       case 'coins': return '#FFD700';
       case 'account': return '#800080';
-      case 'connection': return '#3498DB';
+      case 'ads': return '#3498DB';
       case 'performance': return '#2ECC71';
       default: return colors.primary;
     }
@@ -383,15 +429,10 @@ export default function ReportProblemScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Report Problem</Text>
-          <Bug size={24} color="white" />
-        </View>
-      </View>
+      <ScreenHeader 
+        title="Report Problem" 
+        icon={Bug}
+      />
 
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {/* Search Bar */}
@@ -400,7 +441,7 @@ export default function ReportProblemScreen() {
           <TextInput
             ref={searchInputRef}
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search for your technical issue..."
+            placeholder="Search for your issue..."
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -416,7 +457,7 @@ export default function ReportProblemScreen() {
         {/* Category Navigation */}
         <View style={styles.categoriesSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            🔍 Issue Categories
+            📋 Problem Categories
           </Text>
           <FlatList
             data={categories}
@@ -437,10 +478,10 @@ export default function ReportProblemScreen() {
           {/* Quick Issues Grid */}
           <View style={styles.issuesSection}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              ⚡ Quick Report
+              ⚡ Common Issues
             </Text>
             <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-              Tap an issue to report it instantly
+              Select your issue below for quick reporting
             </Text>
 
             {filteredIssues.length === 0 ? (
@@ -525,12 +566,12 @@ export default function ReportProblemScreen() {
             <View style={styles.customReportHeader}>
               <AlertTriangle size={isVerySmallScreen ? 20 : 24} color={colors.warning} />
               <Text style={[styles.customReportTitle, { color: colors.text }]}>
-                📝 Describe Your Issue
+                📝 Other Issues
               </Text>
             </View>
             
             <Text style={[styles.customReportSubtitle, { color: colors.textSecondary }]}>
-              Can't find your issue above? Describe it in detail below:
+              Don't see your issue? Describe it here and we'll help:
             </Text>
 
             <TextInput
@@ -542,7 +583,7 @@ export default function ReportProblemScreen() {
                   borderColor: colors.border
                 }
               ]}
-              placeholder="Describe the technical problem you're experiencing..."
+              placeholder="Please describe your issue with VidGro in detail..."
               placeholderTextColor={colors.textSecondary}
               value={customDescription}
               onChangeText={setCustomDescription}
@@ -579,22 +620,25 @@ export default function ReportProblemScreen() {
             <View style={styles.helpHeader}>
               <Shield size={isVerySmallScreen ? 18 : 20} color={colors.success} />
               <Text style={[styles.helpTitle, { color: colors.success }]}>
-                💡 Before Reporting
+                💡 Quick Fixes to Try
               </Text>
             </View>
             
             <View style={styles.helpTips}>
               <Text style={[styles.helpTip, { color: colors.success }]}>
-                • Try restarting the app first
+                • Force close and restart VidGro app
               </Text>
               <Text style={[styles.helpTip, { color: colors.success }]}>
                 • Check your internet connection
               </Text>
               <Text style={[styles.helpTip, { color: colors.success }]}>
-                • Update to the latest app version
+                • Update VidGro to the latest version
               </Text>
               <Text style={[styles.helpTip, { color: colors.success }]}>
-                • Clear app cache if issues persist
+                • Clear app cache in Settings
+              </Text>
+              <Text style={[styles.helpTip, { color: colors.success }]}>
+                • Try logging out and back in
               </Text>
             </View>
           </View>
@@ -604,13 +648,14 @@ export default function ReportProblemScreen() {
             <Clock size={isVerySmallScreen ? 18 : 20} color={colors.primary} />
             <View style={styles.responseContent}>
               <Text style={[styles.responseTitle, { color: colors.primary }]}>
-                📞 Technical Support Response
+                📧 Support Response Times
               </Text>
               <Text style={[styles.responseText, { color: colors.primary }]}>
-                • Critical issues: Within 1 hour
-                {'\n'}• Common issues: Within 2-4 hours
-                {'\n'}• Minor issues: Within 24 hours
-                {'\n'}• Custom reports: Within 4-8 hours
+                • Payment/Coin issues: Within 2 hours
+                {'\n'}• VIP issues: Within 4 hours
+                {'\n'}• Technical problems: Within 6 hours
+                {'\n'}• General inquiries: Within 24 hours
+                {'\n'}\nContact: support@vidgro.app
               </Text>
             </View>
           </View>

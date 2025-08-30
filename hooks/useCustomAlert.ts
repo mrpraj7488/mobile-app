@@ -16,18 +16,7 @@ export function useCustomAlert() {
   const [isClosing, setIsClosing] = useState(false);
 
   const showAlert = useCallback((config: AlertConfig) => {
-    // If an alert is currently closing, wait for it to finish
-    if (isClosing) {
-      setTimeout(() => showAlert(config), 250);
-      return;
-    }
-    
-    // If an alert is already visible, close it first
-    if (visible) {
-      hideAlert();
-      setTimeout(() => showAlert(config), 250);
-      return;
-    }
+    if (isClosing || visible) return;
     
     setAlertConfig(config);
     setVisible(true);
@@ -35,15 +24,13 @@ export function useCustomAlert() {
   }, [visible, isClosing]);
 
   const hideAlert = useCallback(() => {
-    if (isClosing) return; // Prevent multiple close calls
+    if (!visible) return;
     
     setIsClosing(true);
     setVisible(false);
-    setTimeout(() => {
-      setAlertConfig(null);
-      setIsClosing(false);
-    }, 250); // Slightly longer delay to ensure animation completes
-  }, [isClosing]);
+    setAlertConfig(null);
+    setIsClosing(false);
+  }, [visible]);
 
   // Convenience methods for different alert types
   const showSuccess = useCallback((title: string, message: string, autoClose = true) => {
@@ -107,7 +94,6 @@ export function useCustomAlert() {
       },
     ];
 
-    // Add third button if provided
     if (thirdButtonText) {
       buttons.splice(1, 0, {
         text: thirdButtonText,

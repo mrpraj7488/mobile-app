@@ -158,10 +158,10 @@ export default function PromoteTab() {
         let errorMsg = 'Failed to promote video. Please try again.';
         if (typeof result.error === 'string') {
           errorMsg = result.error;
-        } else if (result.error.message) {
+        } else if (result.error && typeof result.error === 'object' && result.error.message) {
           errorMsg = result.error.message;
-        } else {
-          errorMsg = JSON.stringify(result.error);
+        } else if (result.error && typeof result.error === 'object') {
+          errorMsg = String(result.error);
         }
         showError('Error', errorMsg);
         return;

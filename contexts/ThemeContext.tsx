@@ -111,7 +111,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setMode(savedTheme as ThemeMode);
       }
     } catch (error) {
-      console.error('Error loading theme preference:', error);
+      
     }
   };
 
@@ -120,7 +120,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setMode(newMode);
       await AsyncStorage.setItem('theme_preference', newMode);
     } catch (error) {
-      console.error('Error saving theme preference:', error);
+      
     }
   };
 

@@ -46,30 +46,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { config, loading: configLoading, isConfigValid } = useConfig();
 
   useEffect(() => {
-    let retryTimeout: NodeJS.Timeout | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     
     const initializeAuth = async () => {
-              // Wait for ConfigContext to be ready and Supabase to be initialized
-        if (configLoading || !isConfigValid || !config) {
-          setLoading(true); // Keep loading while waiting for config
-          return;
-        }
+      // Wait for ConfigContext to be ready and Supabase to be initialized
+      if (configLoading || !isConfigValid || !config) {
+        setLoading(true); // Keep loading while waiting for config
+        return;
+      }
 
-        // Wait for Supabase to be initialized
-        const supabaseClient = getSupabase();
-        if (!supabaseClient) {
-          setLoading(true); // Keep loading while waiting for Supabase
-          
-          // Retry after a short delay
-          retryTimeout = setTimeout(() => {
-            initializeAuth();
-          }, 500);
-          return;
-        }
+      // Wait for Supabase to be initialized
+      const supabaseClient = getSupabase();
+      if (!supabaseClient) {
+        setLoading(true); // Keep loading while waiting for Supabase
+        
+        // Retry after a short delay
+        retryTimeout = setTimeout(() => {
+          initializeAuth();
+        }, 500);
+        return;
+      }
 
-        try {
-          // Get initial session
-          const { data: { session } } = await supabaseClient.auth.getSession();
+      try {
+        // Get initial session
+        const { data: { session } } = await supabaseClient.auth.getSession();
         setUser(session?.user ?? null);
         if (session?.user) {
           await loadProfile(session.user.id);
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Listen for auth changes
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
-          async (event, session) => {
+          async (event: any, session: any) => {
             setUser(session?.user ?? null);
             if (session?.user) {
               await loadProfile(session.user.id);

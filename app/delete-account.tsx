@@ -5,15 +5,19 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Trash2, TriangleAlert as AlertTriangle, Shield } from 'lucide-react-native';
+import { Trash2, TriangleAlert as AlertTriangle, Shield, ArrowLeft } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import { useNetwork } from '@/services/NetworkHandler';
+import { supabase } from '@/lib/supabase';
+import { useNotification } from '@/contexts/NotificationContext';
 
 export default function DeleteAccountScreen() {
   const { user, profile, signOut } = useAuth();
   const { colors, isDark } = useTheme();
-  const { showError, showDestructiveConfirm, showSuccess } = useAlert();
+  const { showError } = useAlert();
   const router = useRouter();
   const { showNetworkAlert } = useNetwork();
+  const { showNotification } = useNotification();
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -26,29 +30,48 @@ export default function DeleteAccountScreen() {
 
     setLoading(true);
     
-    showDestructiveConfirm(
-      'Final Confirmation',
-      'This action cannot be undone. Are you absolutely sure you want to delete your account?',
-      async () => {
-        // Simulate account deletion process
-        setTimeout(async () => {
-          showSuccess(
-            'Account Deleted',
-            'Your account has been permanently deleted. Thank you for using VidGro.',
-            false
-          );
-          setTimeout(async () => {
-            await signOut();
-            router.replace('/(auth)/login');
-          }, 2000);
-        }, 2000);
-      },
-      () => setLoading(false),
-      'Delete Forever',
-      'Cancel'
-    );
-    
-    setLoading(false);
+    try {
+      if (!user?.id) {
+        throw new Error('No user found');
+      }
+
+      // Delete user profile from profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      // Delete user from Supabase Auth using RPC function
+      const { error: deleteError } = await supabase.rpc('delete_user_account');
+      
+      if (deleteError) {
+        // Fallback: just sign out the user
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) {
+          console.error('Sign out error:', signOutError);
+        }
+      }
+
+      // Show slide notification
+      showNotification('success', 'Account deleted successfully. Thank you for using VidGro.');
+      
+      // Sign out and redirect after a brief delay
+      setTimeout(async () => {
+        await signOut();
+        router.replace('/(auth)/login');
+      }, 1500);
+      
+    } catch (error: any) {
+      showError(
+        'Deletion Failed', 
+        'Failed to delete account. Please try again or contact support.'
+      );
+      setLoading(false);
+    }
   };
 
   const dataToDelete = [
@@ -65,15 +88,10 @@ export default function DeleteAccountScreen() {
   if (step === 1) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <ArrowLeft size={24} color="white" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Delete Account</Text>
-            <Trash2 size={24} color="white" />
-          </View>
-        </View>
+        <ScreenHeader 
+          title="Delete Account" 
+          icon={Trash2}
+        />
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.warningContainer, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.2)', borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.4)' }]}>

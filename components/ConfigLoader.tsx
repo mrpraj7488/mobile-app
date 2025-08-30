@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useConfig } from '@/contexts/ConfigContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useConfig } from '../contexts/ConfigContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Shield, AlertTriangle, RefreshCw } from 'lucide-react-native';
 
 interface ConfigLoaderProps {
@@ -16,7 +17,7 @@ export default function ConfigLoader({ children }: ConfigLoaderProps) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setForceRender(true);
-    }, 2000); // Reduced from 10s to 2s
+    }, 1000); // Reduced to 1s for faster loading
 
     return () => clearTimeout(timeout);
   }, []);
@@ -54,7 +55,7 @@ export default function ConfigLoader({ children }: ConfigLoaderProps) {
   }
 
   // Don't show any loading screen - let the main splash handle it
-  return null;
+  return <>{children}</>;
 }
 
 const styles = StyleSheet.create({

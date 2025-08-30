@@ -20,7 +20,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Send, Paperclip, X, ArrowLeft, Shield, User as UserIcon, FileText, Image as ImageIcon, Download, Check, RefreshCw, CircleAlert as AlertCircle, Clock, MessageSquare, CircleCheck as CheckCircle, Circle as XCircle } from 'lucide-react-native';
+import { Send, Paperclip, X, Shield, User as UserIcon, FileText, Image as ImageIcon, Download, Check, RefreshCw, CircleAlert as AlertCircle, Clock, MessageSquare, CircleCheck as CheckCircle, Circle as XCircle } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import { getSupabase } from '@/lib/supabase';
 import { useNotification } from '@/contexts/NotificationContext';
 import CustomAlert from '@/components/CustomAlert';
@@ -50,17 +51,17 @@ function TicketDetailScreen() {
   const supabase = getSupabase();
   const { showError, showSuccess, showInfo } = useNotification();
   const { showNetworkAlert } = useNetwork();
-  const scrollViewRef = useRef(null);
+  const flatListRef = useRef<FlatList>(null);
 
   // State
-  const [ticket, setTicket] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [ticket, setTicket] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [attachments, setAttachments] = useState([]);
-  const [realtimeSubscription, setRealtimeSubscription] = useState(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [realtimeSubscription, setRealtimeSubscription] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
@@ -109,8 +110,8 @@ function TicketDetailScreen() {
           table: 'support_tickets',
           filter: `id=eq.${params.id}`
         },
-        (payload) => {
-          console.log('Ticket updated:', payload);
+        (payload: any) => {
+          
           loadTicketData();
         }
       )
@@ -167,16 +168,15 @@ function TicketDetailScreen() {
 
       // Scroll to bottom
       setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+        flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
 
     } catch (error) {
-      console.error('Error loading ticket:', error);
-      
+
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in loadTicket - Showing network alert');
+        
         showNetworkAlert();
       } else {
         showError('Error', 'Failed to load ticket details');
@@ -209,7 +209,7 @@ function TicketDetailScreen() {
     setSending(true);
     try {
       // Upload attachments if any
-      let attachmentData = [];
+      let attachmentData: any[] = [];
       if (attachments.length > 0) {
         try {
           // Ensure storage bucket exists
@@ -232,7 +232,7 @@ function TicketDetailScreen() {
             uploaded_at: new Date().toISOString()
           }));
         } catch (uploadError) {
-          console.error('File upload error:', uploadError);
+          
           showError('Upload Failed', 'Failed to upload attachments. Please try again.');
           setSending(false);
           return;
@@ -260,12 +260,11 @@ function TicketDetailScreen() {
       showSuccess('Message Sent', 'Your message has been sent successfully');
 
     } catch (error) {
-      console.error('Error sending message:', error);
-      
+
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in sendMessage - Showing network alert');
+        
         showNetworkAlert();
       } else {
         showError('Error', 'Failed to send message');
@@ -301,7 +300,7 @@ function TicketDetailScreen() {
         const file = result.assets[0];
         
         // Check file size (5MB limit)
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size && file.size > 5 * 1024 * 1024) {
           showError('File Too Large', 'File size must be less than 5MB');
           return;
         }
@@ -314,21 +313,21 @@ function TicketDetailScreen() {
         }]);
       }
     } catch (error) {
-      console.error('Document picker error:', error);
+      
     }
   };
 
-  const removeAttachment = (index) => {
+  const removeAttachment = (index: number) => {
     setAttachments(attachments.filter((_, i) => i !== index));
   };
 
-  const formatFileSize = (bytes) => {
+  const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: string) => {
     const iconSize = isTinyScreen ? 16 : 18;
     switch(status) {
       case 'active': return <AlertCircle size={iconSize} color={colors.primary} />;
@@ -340,7 +339,7 @@ function TicketDetailScreen() {
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch(status) {
       case 'active': return colors.primary;
       case 'pending': return colors.warning;
@@ -351,7 +350,7 @@ function TicketDetailScreen() {
     }
   };
 
-  const renderMessage = ({ item, index }) => {
+  const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isAdmin = item.is_admin;
     const isCurrentUser = !isAdmin;
     const messageTime = new Date(item.created_at);
@@ -538,14 +537,10 @@ function TicketDetailScreen() {
           style={styles.gradientHeader}
         >
           <View style={styles.headerContent}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <ArrowLeft size={24} color="white" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Loading...</Text>
-            <View style={styles.headerSpacer} />
+            <ScreenHeader 
+              title="Loading..." 
+              icon={MessageSquare}
+            />
           </View>
         </LinearGradient>
         <View style={styles.loadingContainer}>
@@ -584,74 +579,17 @@ function TicketDetailScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Enhanced Header with Gradient */}
-        <LinearGradient
-          colors={isDark 
-            ? [colors.headerBackground + 'F0', colors.surface + '95'] 
-            : [colors.primary, colors.primary + 'CC']
-          }
-          style={styles.gradientHeader}
-        >
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          
-          <View style={styles.headerTitleContainer}>
-            <Text style={[
-              styles.headerTitle,
-              {
-                textShadowColor: isDark ? 'transparent' : 'rgba(0,0,0,0.3)',
-                textShadowOffset: { width: 0, height: 1 },
-                textShadowRadius: 2,
-                fontWeight: '700'
-              }
-            ]} numberOfLines={1}>
-              #{ticket.id.slice(0, 8)}
+      <ScreenHeader 
+        title={`Ticket #${ticket.id.slice(-8).toUpperCase()}`} 
+        icon={MessageSquare}
+        rightComponent={
+          <View style={[styles.headerStatusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
+            <Text style={styles.headerStatusText}>
+              {ticket.status.toUpperCase()}
             </Text>
-            <View style={[
-              styles.statusBadge, 
-              { 
-                backgroundColor: isDark 
-                  ? getStatusColor(ticket.status) + '35'
-                  : 'rgba(255, 255, 255, 0.95)',
-                borderColor: isDark 
-                  ? getStatusColor(ticket.status) + '60'
-                  : getStatusColor(ticket.status),
-                borderWidth: isDark ? 1 : 2
-              }
-            ]}>
-              {getStatusIcon(ticket.status)}
-              <Text style={[
-                styles.statusText, 
-                { 
-                  color: isDark 
-                    ? getStatusColor(ticket.status)
-                    : getStatusColor(ticket.status),
-                  fontWeight: '800',
-                  textShadowColor: isDark ? 'transparent' : 'rgba(0,0,0,0.1)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 1
-                }
-              ]}>
-                {ticket.status.toUpperCase()}
-              </Text>
-            </View>
           </View>
-          
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={onRefresh}
-            activeOpacity={0.7}
-          >
-            <RefreshCw size={24} color="white" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+        }
+      />
 
       {/* Enhanced Ticket Info */}
       <View style={[styles.ticketInfo, { backgroundColor: colors.surface }]}>
@@ -736,7 +674,7 @@ function TicketDetailScreen() {
       ]}>
         {/* Messages */}
         <FlatList
-          ref={scrollViewRef}
+          ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id || Math.random().toString()}
@@ -750,7 +688,7 @@ function TicketDetailScreen() {
               colors={[colors.primary]}
             />
           }
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ItemSeparatorComponent={() => <View style={styles.messageSeparator} />}
         />
       </View>
@@ -952,6 +890,27 @@ const styles = StyleSheet.create({
     fontSize: isTinyScreen ? 9 : 10,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  headerStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: isTinyScreen ? 8 : 12,
+    paddingVertical: isTinyScreen ? 4 : 6,
+    borderRadius: isTinyScreen ? 12 : 16,
+    minWidth: isTinyScreen ? 60 : 70,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerStatusText: {
+    fontSize: isTinyScreen ? 11 : 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    color: 'white',
+    textAlign: 'center',
   },
   refreshButton: {
     padding: isTinyScreen ? 6 : 8,

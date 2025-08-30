@@ -1,5 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
-import 'react-native-url-polyfill/auto';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import SecurityService from '../services/SecurityService';
+import CacheOptimizer from '../utils/CacheOptimizer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useConfig } from '../contexts/ConfigContext';
 
@@ -44,6 +45,9 @@ export interface RuntimeConfig {
 // Dynamic Supabase client that will be initialized with runtime config
 
 let supabaseClient: any = null;
+let runtimeConfig: RuntimeConfig | null = null;
+let configFetchPromise: Promise<RuntimeConfig | null> | null = null;
+let isInitializing = false;
 
 // Keep track of initialization attempts
 let initializationAttempts = 0;
@@ -57,8 +61,11 @@ const tryInitializeWithConfig = (config: RuntimeConfig | null): boolean => {
 
   // For public endpoint, use fallback key if anonKey is missing
   const anonKey = config.supabase.anonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  
+  // If no anonKey available, skip Supabase initialization
+  // The app will work in limited mode without auth features
   if (!anonKey) {
-    return false;
+    return true; // Return true to allow config validation to pass
   }
 
   const client = initializeSupabase(config.supabase.url, anonKey);
@@ -102,6 +109,39 @@ export const supabase = new Proxy({} as any, {
   }
 });
 
+// Lazy initialization to prevent circular dependencies
+let initializationPromise: Promise<void> | null = null;
+
+export const ensureSupabaseInitialized = async (): Promise<void> => {
+  if (supabaseClient) return;
+  
+  if (isInitializing) {
+    // Wait for current initialization to complete
+    while (isInitializing) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return;
+  }
+  
+  if (!initializationPromise) {
+    isInitializing = true;
+    initializationPromise = (async () => {
+      try {
+        const config = await fetchRuntimeConfig();
+        if (config?.supabase?.url && config?.supabase?.anonKey) {
+          initializeSupabase(config.supabase.url, config.supabase.anonKey);
+        }
+      } catch (error) {
+        // Silent fail for initialization
+      } finally {
+        isInitializing = false;
+      }
+    })();
+  }
+  
+  await initializationPromise;
+};
+
 // Remove old awardCoinsForVideo function and replace with new watchVideo
 export const watchVideoAndEarnCoins = async (
   userId: string,
@@ -110,7 +150,13 @@ export const watchVideoAndEarnCoins = async (
   fullyWatched: boolean = false
 ): Promise<{ data: any; error: any }> => {
   try {
-    const { data, error } = await getSupabase().rpc('watch_video_and_earn_coins', {
+    await ensureSupabaseInitialized();
+    const client = getSupabase();
+    if (!client) {
+      return { data: null, error: new Error('Supabase not available') };
+    }
+    
+    const { data, error } = await client.rpc('watch_video_and_earn_coins', {
       user_uuid: userId,
       video_uuid: videoId,
       watch_duration: watchDuration,
@@ -151,7 +197,13 @@ export async function getUserProfile(userId: string): Promise<any> {
 // Get video queue
 export async function getVideoQueue(userId: string): Promise<any[]> {
   try {
-    const { data, error } = await getSupabase()
+    await ensureSupabaseInitialized();
+    const client = getSupabase();
+    if (!client) {
+      throw new Error('Supabase not initialized');
+    }
+    
+    const { data, error } = await client
       .from('videos')
       .select('*')
       .neq('user_id', userId)  // Don't show user's own videos
@@ -165,7 +217,7 @@ export async function getVideoQueue(userId: string): Promise<any[]> {
       throw error;
     }
 
-    return data?.map(video => ({
+    return data?.map((video: any) => ({
       ...video,
       youtube_url: video.youtube_url,
       coin_reward: video.coin_reward || 1,
@@ -243,7 +295,7 @@ export const deleteVideo = async (
   // Use direct table operations for reliable deletion with refund
   const supabase = getSupabase();
   
-  console.log('🔍 Attempting to delete video:', { videoId, userId });
+  // Attempting to delete video with refund
   
   // Get video details for refund calculation - try multiple approaches
   let { data: video, error: videoError } = await supabase
@@ -253,7 +305,7 @@ export const deleteVideo = async (
     .eq('user_id', userId)
     .single();
   
-  console.log('📊 Video lookup result:', { video, videoError });
+  // Video lookup result processed
   
   if (videoError || !video) {
     // Try lookup without user_id constraint (in case of permission issues)
@@ -263,7 +315,7 @@ export const deleteVideo = async (
       .eq('id', videoId)
       .single();
     
-    console.log('📊 Alternative video lookup (no user constraint):', { altVideo, altError });
+    // Alternative video lookup attempted
     
     if (altError || !altVideo) {
       return { data: null, error: { message: 'Video not found in database' } };
@@ -457,7 +509,7 @@ export const getUserRecentActivity = async (userId: string) => {
     };
 
     // Transform transactions into activity format
-    const activities = (transactions || []).map(transaction => ({
+    const activities = (transactions || []).map((transaction: any) => ({
       id: transaction.id,
       user_id: transaction.user_id,
       activity_type: activityMap[transaction.transaction_type] || 'other',
@@ -588,7 +640,8 @@ export const validateRuntimeConfig = (config: any): RuntimeConfig | null => {
       if (initialized) {
         return validatedConfig;
       } else {
-        return null;
+        // For public endpoint, allow config without anonKey (will use fallback)
+        return validatedConfig;
       }
     }
 
@@ -598,75 +651,121 @@ export const validateRuntimeConfig = (config: any): RuntimeConfig | null => {
   }
 };
 
-import SecurityService from '../services/SecurityService';
-// Fetch runtime configuration from secure endpoint
+// Cached runtime config fetching with singleton pattern
 export const fetchRuntimeConfig = async (): Promise<RuntimeConfig | null> => {
-  try {
-    console.log('📱 Fetching runtime config from secure endpoint');
-    const deviceId = await SecurityService.getInstance().generateDeviceFingerprint();
-    const clientId = process.env.EXPO_PUBLIC_MOBILE_CLIENT_ID || 'vidgro_mobile_2024';
-    const clientSecret = process.env.EXPO_PUBLIC_MOBILE_CLIENT_SECRET || 'vidgro_secret_key_2024';
-
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/client-runtime-config/secure`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        clientId,
-        clientSecret,
-        deviceId
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+  const cacheOptimizer = CacheOptimizer.getInstance();
+  
+  // Check cache first
+  const cachedConfig = await cacheOptimizer.getCache<RuntimeConfig>('runtime_config');
+  if (cachedConfig) {
+    // If public config is disabled and cached config lacks anonKey, force refresh
+    const allowPublicConfig = process.env.EXPO_PUBLIC_ALLOW_PUBLIC_CONFIG === 'true';
+    if (!allowPublicConfig && !cachedConfig.supabase?.anonKey) {
+      await cacheOptimizer.clearAllCache();
+    } else {
+      return cachedConfig;
     }
+  }
 
-    const result = await response.json();
-    console.log('📱 Server response received:', result);
-
-    if (result.error) {
-      throw new Error(result.error);
+  // Return cached config if available and not expired
+  if (runtimeConfig && (runtimeConfig as any).metadata) {
+    const metadata = (runtimeConfig as any).metadata;
+    const lastUpdated = new Date(metadata.lastUpdated).getTime();
+    const ttl = metadata.ttl * 1000; // Convert to milliseconds
+    const isExpired = Date.now() - lastUpdated > ttl;
+    
+    if (!isExpired) {
+      return runtimeConfig;
     }
+  }
 
-    // Validate the config structure
-    const validatedConfig = validateRuntimeConfig(result.data);
-    if (validatedConfig) {
-      return validatedConfig;
-    }
+  // If already fetching, return the existing promise
+  if (configFetchPromise) {
+    return configFetchPromise;
+  }
 
-    throw new Error('Invalid config structure in response data');
-  } catch (error) {
-    console.error('📱 Failed to fetch runtime config from secure endpoint:', error);
-
-    // Fallback to public endpoint for backward compatibility (minimal data)
+  // Create new fetch promise
+  const fetchConfigFromServerInternal = async (): Promise<RuntimeConfig | null> => {
     try {
-      console.log('📱 Falling back to public endpoint for minimal config');
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/client-runtime-config`);
+      const securityService = SecurityService.getInstance();
+      const deviceId = await securityService.generateDeviceFingerprint();
+      const clientId = process.env.EXPO_PUBLIC_ADMIN_CLIENT_ID || 'vidgro_mobile_2024';
+      const clientSecret = process.env.EXPO_PUBLIC_ADMIN_CLIENT_SECRET || 'vidgro_secret_key_2024';
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/client-runtime-config/secure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+        },
+        body: JSON.stringify({
+          clientId,
+          clientSecret,
+          deviceId
+        })
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('📱 Public endpoint response (minimal config):', result);
-
       if (result.error) {
         throw new Error(result.error);
       }
 
-      // Validate the public config structure
+      // Validate the config structure
       const validatedConfig = validateRuntimeConfig(result.data);
       if (validatedConfig) {
-        console.log('📱 Public endpoint config validated successfully');
+        // Cache the validated config
+        await cacheOptimizer.setCache('runtime_config', validatedConfig, 60 * 60 * 1000); // 1 hour TTL
         return validatedConfig;
       }
 
-      throw new Error('Invalid config structure in public endpoint response');
-    } catch (fallbackError) {
-      console.error('📱 Both secure and public endpoints failed:', fallbackError);
-      return null;
+      throw new Error('Invalid config structure in response data');
+    } catch (error) {
+
+      // Fallback to public endpoint for backward compatibility (minimal data)
+      try {
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/client-runtime-config`, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        // Validate the public config structure
+        const validatedConfig = validateRuntimeConfig(result.data);
+        if (validatedConfig) {
+          // Cache the validated config
+          await cacheOptimizer.setCache('runtime_config', validatedConfig, 30 * 60 * 1000); // 30 min TTL for fallback
+          return validatedConfig;
+        }
+
+        throw new Error('Invalid config structure in public endpoint response');
+      } catch (fallbackError) {
+        return null;
+      }
     }
-  }
+  };
+
+  configFetchPromise = fetchConfigFromServerInternal();
+  const result = await configFetchPromise;
+  configFetchPromise = null; // Reset promise
+  return result;
 };

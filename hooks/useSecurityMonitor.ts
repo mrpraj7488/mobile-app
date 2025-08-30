@@ -26,10 +26,23 @@ export function useSecurityMonitor() {
     if (config) {
       performSecurityCheck();
       
-      // Set up periodic security monitoring
-      const interval = setInterval(performSecurityCheck, 5 * 60 * 1000); // Every 5 minutes
+      // Set up adaptive security monitoring with battery optimization
+      let checkInterval = 15 * 60 * 1000; // Start with 15 minutes
+      const maxInterval = 60 * 60 * 1000; // Max 1 hour
+      let timeoutId: ReturnType<typeof setTimeout>;
       
-      return () => clearInterval(interval);
+      const scheduleCheck = () => {
+        timeoutId = setTimeout(() => {
+          performSecurityCheck();
+          // Gradually increase interval for stable systems
+          checkInterval = Math.min(checkInterval * 1.1, maxInterval);
+          scheduleCheck();
+        }, checkInterval);
+      };
+      
+      scheduleCheck();
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [config]);
 
@@ -62,17 +75,15 @@ export function useSecurityMonitor() {
       }
       
     } catch (error) {
-      console.error('Security monitoring error:', error);
+      // Silent error handling for security checks
     }
   };
 
   const handleSecurityViolation = (reason: string) => {
-    console.warn('🔒 Security violation detected:', reason);
     // Security violations handled silently to avoid disrupting user experience
   };
 
   const handleAdBlockDetection = () => {
-    console.warn('🚫 Ad blocking detected by security monitor');
     // Ad block detection handled silently to avoid disrupting user experience
   };
 

@@ -17,8 +17,11 @@ import { useConfig } from '../contexts/ConfigContext';
 import { useFeatureFlag } from '../hooks/useFeatureFlags';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Crown, Check, Zap, Shield, Headphones, Star, Clock, Sparkles, Gift, Timer } from 'lucide-react-native';
+import { Crown, Star, Zap, Shield, Coins, Check, Gift, Headphones, ArrowLeft, Sparkles, Timer } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import { useNetwork } from '@/services/NetworkHandler';
+import PurchaseService from '@/services/PurchaseService';
+import { useAlert } from '@/contexts/AlertContext';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -43,12 +46,14 @@ const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 export default function BecomeVIPScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors, isDark } = useTheme();
-  const { showError, showSuccess, showInfo } = useNotification();
+  const { showError, showSuccess, showInfo, showNotification } = useNotification();
   const { config } = useConfig();
   const vipEnabled = useFeatureFlag('vipEnabled');
   const router = useRouter();
   const { showNetworkAlert } = useNetwork();
   const [loading, setLoading] = useState(false);
+  const [purchaseLoading, setPurchaseLoading] = useState<string | null>(null);
+  const [iapAvailable, setIapAvailable] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('monthly');
   const [vipExpiry, setVipExpiry] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
@@ -60,9 +65,10 @@ export default function BecomeVIPScreen() {
   const shimmerAnimation = useSharedValue(0);
   const pulseAnimation = useSharedValue(1);
 
-  // Plan animations
+  // Plan animations and timer ref
   const monthlyCardAnimation = useRef(new RNAnimated.Value(0)).current;
   const weeklyCardAnimation = useRef(new RNAnimated.Value(0)).current;
+  const timerRef = useRef<number | null>(null);
 
   const vipPlans = [
     {
@@ -106,6 +112,15 @@ export default function BecomeVIPScreen() {
   ];
 
   useEffect(() => {
+    // Initialize purchase service
+    PurchaseService.initialize().then(success => {
+      setIapAvailable(success);
+      if (!success) {
+        console.warn('Failed to initialize VIP purchases');
+      }
+    });
+
+
     // Initialize animations
     startAnimations();
     
@@ -116,11 +131,18 @@ export default function BecomeVIPScreen() {
       updateTimeRemaining(expiryDate);
       
       // Update timer every second
-      const interval = setInterval(() => {
+      timerRef.current = setInterval(() => {
         updateTimeRemaining(expiryDate);
       }, 1000);
       
-      return () => clearInterval(interval);
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+        if (iapAvailable) {
+          PurchaseService.cleanup();
+        }
+      };
     }
   }, [profile]);
 
@@ -213,9 +235,7 @@ export default function BecomeVIPScreen() {
       return;
     }
 
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Animate button
     buttonScale.value = withSequence(
@@ -233,45 +253,78 @@ export default function BecomeVIPScreen() {
       // Simulate purchase process with better UX
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // For Android platform - handle IAP purchase
-      if (Platform.OS === 'android') {
-        try {
-          // Dynamically import IAP for native platforms
-          const InAppPurchases = await import('react-native-iap');
-          
-          const purchase = await InAppPurchases.requestPurchase({
-            sku: plan.productId,
-            andDangerouslyFinishTransactionAutomaticallyIOS: false,
-          });
-          
-          if (purchase) {
-            await activateVIP(plan);
-            
-            // Finish the transaction
-            const purchaseToFinish = Array.isArray(purchase) ? purchase[0] : purchase;
-            await InAppPurchases.finishTransaction({ purchase: purchaseToFinish, isConsumable: false });
-          }
-        } catch (iapError: any) {
-          console.error('IAP Purchase error:', iapError);
-          if (iapError.code !== 'E_USER_CANCELLED') {
-            showError('Purchase Failed', 'Unable to complete in-app purchase. Please try again.');
-          }
-        }
+      // Check IAP availability
+      if (!iapAvailable) {
+        showError('Purchase Unavailable', '🚫 VIP subscriptions are not available. Please ensure you have a valid Google Play account and try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Use PurchaseService for VIP subscription
+      console.log('Requesting VIP subscription for:', plan.productId);
+      
+      const success = await PurchaseService.purchaseVIP(plan.productId);
+      
+      if (success) {
+        console.log('✅ VIP subscription successful');
+        
+        // Refresh profile to show VIP status
+        await refreshProfile();
+        
+        showSuccess(
+          '👑 Welcome to VIP!',
+          `🎉 Your ${plan.duration} VIP membership is now active!\n\n✨ Enjoy unlimited uploads, priority support, and exclusive features!\n\n💎 Thank you for choosing VidGro VIP!`
+        );
+        
+        // Navigate back to main screen
+        setTimeout(() => {
+          router.push('/(tabs)');
+        }, 3000);
       } else {
-        // For testing/web - simulate successful purchase
-        await activateVIP(plan);
+        showError('VIP Purchase Failed', '⚠️ VIP subscription could not be activated. Please try again or contact support.');
       }
       
     } catch (error: any) {
-      console.error('Purchase error:', error);
-      
-      // Check for network errors and show appropriate alert
+      console.error('VIP subscription error:', error);
+
+      // Provide detailed user-friendly error messages
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in handleSubscribe - Showing network alert');
+      
+      if (errorMessage.includes('E_USER_CANCELLED') || errorMessage.includes('User cancelled') || errorMessage.includes('cancelled')) {
+        // User cancelled - no error needed, just log
+        console.log('User cancelled VIP subscription');
+      } else if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
         showNetworkAlert();
+      } else if (errorMessage.includes('ITEM_UNAVAILABLE') || errorMessage.includes('Product not available')) {
+        showError(
+          '🚫 Subscription Unavailable', 
+          'This VIP plan is temporarily unavailable. Please try the other plan or contact support if the issue persists.'
+        );
+      } else if (errorMessage.includes('BILLING_UNAVAILABLE') || errorMessage.includes('billing')) {
+        showError(
+          '💳 Billing Issue', 
+          'Google Play billing is not available. Please check your Google Play account and payment methods, then try again.'
+        );
+      } else if (errorMessage.includes('ITEM_ALREADY_OWNED')) {
+        showError(
+          '⚠️ Already Subscribed', 
+          'You already have an active VIP subscription. Please check your VIP status or contact support if this seems incorrect.'
+        );
+      } else if (errorMessage.includes('DEVELOPER_ERROR')) {
+        showError(
+          '🔧 Configuration Error', 
+          'There\'s a configuration issue with VIP subscriptions. Please contact support for immediate assistance.'
+        );
+      } else if (errorMessage.includes('SERVICE_UNAVAILABLE') || errorMessage.includes('timeout')) {
+        showError(
+          '⏰ Service Unavailable', 
+          'Google Play services are temporarily unavailable. Please check your internet connection and try again in a few minutes.'
+        );
       } else {
-        showError('Purchase Failed', 'Unable to complete purchase. Please try again.');
+        showError(
+          '❌ Subscription Failed', 
+          'Unable to activate your VIP subscription. No charges were made to your account.\n\n💡 Please try:\n• Checking your internet connection\n• Ensuring sufficient payment method balance\n• Restarting the app\n\nContact support if the issue persists.'
+        );
       }
     } finally {
       setLoading(false);
@@ -292,31 +345,41 @@ export default function BecomeVIPScreen() {
       const { getSupabase } = await import('@/lib/supabase');
       const supabase = getSupabase();
       
-      if (profile?.id) {
-        const { error: transactionError } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: profile.id,
-            transaction_type: 'vip_purchase',
-            amount: -plan.price, // Negative because it's a purchase cost
-            description: `VIP ${plan.duration} subscription purchase`,
-            created_at: new Date().toISOString()
-          });
-        
-        if (transactionError) {
-          console.error('Failed to record VIP transaction:', transactionError);
-          // Don't fail the entire process for transaction logging issues
-        }
+      if (!profile?.id) {
+        throw new Error('User profile not found');
       }
-    } catch (error) {
-      console.error('Error recording VIP transaction:', error);
+
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: profile.id,
+          transaction_type: 'vip_purchase',
+          amount: -plan.price, // Negative because it's a purchase cost
+          description: `VIP ${plan.duration} subscription purchase`,
+          created_at: new Date().toISOString()
+        });
       
-      // Check for network errors and show appropriate alert
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in VIP transaction recording - Showing network alert');
-        showNetworkAlert();
+      if (transactionError) {
+        console.error('Failed to record VIP transaction:', transactionError);
+        // Don't fail the entire process for transaction logging issues
       }
+      
+    } catch (error) {
+      console.error('VIP transaction recording error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch')) {
+        showError(
+          '🌐 Connection Issue',
+          'Unable to record your VIP purchase due to network issues. Your subscription is active - transaction details will be updated when connection is restored.'
+        );
+      } else if (errorMessage.includes('User profile not found')) {
+        showError(
+          '👤 Account Issue',
+          'Unable to locate your account for transaction recording. Your VIP subscription is active. Please restart the app or contact support.'
+        );
+      }
+      // Don't throw - continue with VIP activation
     }
 
     // Update VIP status in database
@@ -334,8 +397,11 @@ export default function BecomeVIPScreen() {
           .eq('id', profile.id);
         
         if (updateError) {
-          console.error('Failed to update VIP status:', updateError);
-          showError('Error', 'Failed to activate VIP status. Please contact support.');
+          console.error('Failed to activate VIP status:', updateError);
+          showError(
+            '⚠️ VIP Activation Issue', 
+            'Your payment was successful but there was an issue activating VIP status. Please contact support with your purchase details for immediate assistance.'
+          );
           return;
         }
         
@@ -348,26 +414,37 @@ export default function BecomeVIPScreen() {
         );
         
         // Add haptic feedback for success
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         setTimeout(() => {
           router.push('/(tabs)');
         }, 2000);
       } else {
-        showError('Activation Failed', 'Unable to activate VIP status. Please contact support if payment was processed.');
+        showError(
+          '👤 Account Error', 
+          'Unable to locate your account for VIP activation. Please restart the app and contact support if payment was processed.'
+        );
       }
     } catch (error) {
-      console.error('Error updating VIP status:', error);
-      
+      console.error('VIP activation error:', error);
+
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in VIP status update - Showing network alert');
-        showNetworkAlert();
+        showError(
+          '🌐 Connection Issue',
+          'Unable to activate VIP due to network issues. Your payment was successful - VIP status will be activated when connection is restored. Please restart the app in a few minutes.'
+        );
+      } else if (errorMessage.includes('User profile not found')) {
+        showError(
+          '👤 Account Issue',
+          'Unable to locate your account for VIP activation. Please restart the app and contact support if payment was processed.'
+        );
       } else {
-        showError('Activation Failed', 'Failed to activate VIP status. Please contact support if payment was processed.');
+        showError(
+          '⚠️ Activation Failed', 
+          'Failed to activate VIP status. If payment was processed, please contact support with your purchase details for immediate assistance.'
+        );
       }
     }
   };
@@ -404,17 +481,15 @@ export default function BecomeVIPScreen() {
   if (profile?.is_vip) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <ArrowLeft size={24} color="white" />
-            </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: 'white' }]}>VIP Status</Text>
+        <ScreenHeader 
+          title="VIP Status" 
+          icon={Crown}
+          rightComponent={
             <Animated.View style={crownAnimatedStyle}>
               <Crown size={24} color="#FFD700" />
             </Animated.View>
-          </View>
-        </View>
+          }
+        />
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* VIP Active Status with Timer */}
@@ -457,7 +532,7 @@ export default function BecomeVIPScreen() {
                   style={[styles.renewalPlan, { backgroundColor: colors.card, borderColor: colors.border }]}
                   onPress={() => handleSubscribe(plan)}
                 >
-                  <Text style={[styles.renewalPlanDuration, { color: colors.text }]}>+{plan.duration}</Text>
+                  <Text style={[styles.renewalPlanDuration, { color: colors.text }]}>{plan.duration}</Text>
                   <Text style={[styles.renewalPlanPrice, { color: colors.primary }]}>₹{plan.price}</Text>
                   <Text style={[styles.renewalPlanSavings, { color: colors.success }]}>Save ₹{plan.savings}</Text>
                 </TouchableOpacity>
@@ -471,17 +546,15 @@ export default function BecomeVIPScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: 'white' }]}>Become VIP</Text>
+      <ScreenHeader 
+        title="VIP Membership" 
+        icon={Crown}
+        rightComponent={
           <Animated.View style={crownAnimatedStyle}>
             <Crown size={24} color="#FFD700" />
           </Animated.View>
-        </View>
-      </View>
+        }
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Plans Section - Main Focus */}
@@ -660,27 +733,6 @@ export default function BecomeVIPScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 40,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
   },
   content: {
     flex: 1,

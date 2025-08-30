@@ -29,8 +29,6 @@ export function useRealtimeVideoUpdates(videoId?: string, userId?: string, onNet
   useEffect(() => {
     if (!videoId && !userId) return;
 
-    console.log('🔌 Setting up real-time subscriptions for:', { videoId, userId });
-
     // Subscribe to video changes
     const videoSubscription = supabase
       .channel('video-updates')
@@ -43,17 +41,17 @@ export function useRealtimeVideoUpdates(videoId?: string, userId?: string, onNet
           filter: videoId ? `id=eq.${videoId}` : undefined
         },
         (payload: any) => {
-          console.log('📹 Video update received:', payload);
+          
           setVideoUpdates(payload.new as VideoUpdate);
         }
       )
       .subscribe((status: any) => {
-        console.log('📹 Video subscription status:', status);
+        
         setIsConnected(status === 'SUBSCRIBED');
         
         // Handle connection errors
         if (status === 'CHANNEL_ERROR') {
-          console.log('🚨 Real-time video subscription failed due to network issues');
+          
           if (onNetworkError) {
             onNetworkError();
           }
@@ -72,7 +70,7 @@ export function useRealtimeVideoUpdates(videoId?: string, userId?: string, onNet
           filter: videoId ? `reference_id=eq.${videoId}` : undefined
         },
         (payload: any) => {
-          console.log('💰 Coin transaction update received:', payload);
+          
           if (payload.new) {
             setCoinTransactions(prev => {
               const newTransaction = payload.new as CoinTransaction;
@@ -92,11 +90,10 @@ export function useRealtimeVideoUpdates(videoId?: string, userId?: string, onNet
         }
       )
       .subscribe((status: any) => {
-        console.log('💰 Transaction subscription status:', status);
-        
+
         // Handle connection errors for transaction subscription too
         if (status === 'CHANNEL_ERROR') {
-          console.log('🚨 Real-time transaction subscription failed due to network issues');
+          
           if (onNetworkError) {
             onNetworkError();
           }
@@ -105,7 +102,7 @@ export function useRealtimeVideoUpdates(videoId?: string, userId?: string, onNet
 
     // Cleanup subscriptions
     return () => {
-      console.log('🔌 Cleaning up real-time subscriptions');
+      
       videoSubscription.unsubscribe();
       transactionSubscription.unsubscribe();
     };

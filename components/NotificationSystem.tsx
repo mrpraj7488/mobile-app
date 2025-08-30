@@ -9,6 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import BatteryOptimizer from '../utils/BatteryOptimizer';
 import { useTheme } from '@/contexts/ThemeContext';
 import { 
   CheckCircle, 
@@ -35,6 +36,7 @@ const getStatusBarHeight = () => {
   if (Platform.OS === 'ios') {
     return isShortScreen ? 44 : 50;
   }
+  // Use real-time StatusBar height to prevent caching issues
   return StatusBar.currentHeight || 24;
 };
 
@@ -84,11 +86,16 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onDis
       }),
     ]).start();
 
-    // Auto dismiss (unless persistent)
+    // Auto dismiss with battery optimization
     if (!notification.persistent && notification.duration !== 0) {
+      const batteryOptimizer = BatteryOptimizer.getInstance();
+      const optimizedDuration = batteryOptimizer.isInLowPowerMode() 
+        ? (notification.duration || 4000) * 0.7 // Faster dismiss in low power mode
+        : (notification.duration || 4000);
+      
       const timer = setTimeout(() => {
         handleDismiss();
-      }, notification.duration || 4000);
+      }, optimizedDuration);
 
       return () => clearTimeout(timer);
     }
@@ -248,15 +255,13 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onDis
           </View>
         </View>
 
-        {!notification.persistent && (
-          <TouchableOpacity
-            style={styles.dismissButton}
-            onPress={handleDismiss}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <X size={getResponsiveSize(16)} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.dismissButton}
+          onPress={handleDismiss}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <X size={getResponsiveSize(18)} color={colors.text} />
+        </TouchableOpacity>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -348,11 +353,15 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   dismissButton: {
-    padding: getResponsiveSize(6),
-    marginLeft: 4,
+    padding: getResponsiveSize(8),
+    marginLeft: 8,
     marginTop: -2, // Better alignment with title
-    borderRadius: getResponsiveSize(12),
-    // Add subtle background for better touch target
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: getResponsiveSize(16),
+    // Enhanced background for better visibility
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    minWidth: getResponsiveSize(32),
+    minHeight: getResponsiveSize(32),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

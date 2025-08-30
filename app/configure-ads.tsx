@@ -15,9 +15,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, ShieldOff, Clock, Play } from 'lucide-react-native';
+import { ShieldOff, Clock, Play } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNetwork } from '@/services/NetworkHandler';
+import ScreenHeader from '@/components/ScreenHeader';
 
 export default function ConfigureAdsScreen() {
   const { user, profile } = useAuth();
@@ -93,7 +94,7 @@ export default function ConfigureAdsScreen() {
         }
       }
     } catch (error) {
-      console.error('Error loading ad-free session:', error);
+      
     }
   };
 
@@ -103,7 +104,7 @@ export default function ConfigureAdsScreen() {
       const sessionData = { endTime, hours };
       await AsyncStorage.setItem('adFreeSession', JSON.stringify(sessionData));
     } catch (error) {
-      console.error('Error saving ad-free session:', error);
+      
     }
   };
 
@@ -127,7 +128,7 @@ export default function ConfigureAdsScreen() {
         router.back();
       }, 2000);
     } catch (error) {
-      console.error('Error ending ad-free session:', error);
+      
     }
   };
 
@@ -179,15 +180,10 @@ export default function ConfigureAdsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: 'white' }]}>Configure Ads</Text>
-          <ShieldOff size={24} color="white" />
-        </View>
-      </View>
+      <ScreenHeader 
+        title="Configure Ads" 
+        icon={ShieldOff}
+      />
 
       <ScrollView 
         style={styles.content} 
@@ -323,27 +319,6 @@ export default function ConfigureAdsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 40,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
   },
   content: {
     flex: 1,

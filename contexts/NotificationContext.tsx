@@ -47,7 +47,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const showNotification = useCallback((
     type: NotificationType,
     title: string,
-    message?: string,
+    message?: any,
     options?: {
       duration?: number;
       persistent?: boolean;
@@ -57,11 +57,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   ): string => {
     const id = generateId();
     
+    // Convert message to string, handling Error objects
+    const messageString = message instanceof Error 
+      ? message.message 
+      : message != null 
+        ? String(message) 
+        : undefined;
+    
     const notification: NotificationData = {
       id,
       type,
       title,
-      message,
+      message: messageString,
       duration: options?.duration,
       persistent: options?.persistent,
       onPress: options?.onPress,

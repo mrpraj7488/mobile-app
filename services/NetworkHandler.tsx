@@ -39,16 +39,13 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
       
       clearTimeout(timeoutId);
       const isOnline = response.ok;
-      
-      console.log('🌐 Network check:', { isOnline, status: response.status });
-      
+
       setIsConnected(isOnline);
       setIsOnline(isOnline);
       setConnectionType(isOnline ? 'online' : 'offline');
       
       return isOnline;
     } catch (error) {
-      console.error('❌ Network check failed:', error);
       setIsConnected(false);
       setIsOnline(false);
       setConnectionType('offline');
@@ -59,9 +56,7 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
   // Show network alert
   const showNetworkAlert = useCallback(() => {
     if (notificationId) return; // Prevent duplicate notifications
-    
-    console.log('🚨 Showing network connectivity notification');
-    
+
     const id = showNetworkNotification(
       'No Internet Connection',
       'Please check your internet connection and try again.',
@@ -74,7 +69,6 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
   // Hide network alert
   const hideNetworkAlert = useCallback(() => {
     if (notificationId) {
-      console.log('✅ Hiding network connectivity notification');
       dismissNotification(notificationId);
       setNotificationId(null);
     }
@@ -82,32 +76,42 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
 
   // Monitor network connectivity
   useEffect(() => {
-    console.log('🔌 Setting up network monitoring');
-    
     // Initial connection check
     checkConnection();
     
-    // Set up periodic network monitoring
-    const monitorInterval = setInterval(async () => {
-      const wasOnline = isConnected && isOnline;
-      const isNowOnline = await checkConnection();
-      
-      if (!wasOnline && isNowOnline) {
-        // Network restored - hide notification if visible
-        console.log('✅ Network restored - hiding notification');
-        hideNetworkAlert();
-      } else if (wasOnline && !isNowOnline) {
-        // Network lost - show notification if not already visible
-        if (!notificationId) {
-          console.log('❌ Network lost - showing notification');
-          setTimeout(() => showNetworkAlert(), 1000); // Brief delay to avoid flicker
+    // Set up intelligent network monitoring with exponential backoff
+    let checkInterval = 10000; // Start with 10 seconds
+    const maxInterval = 60000; // Max 60 seconds
+    let consecutiveFailures = 0;
+    
+    const scheduleNextCheck = () => {
+      setTimeout(async () => {
+        const wasOnline = isConnected && isOnline;
+        const isNowOnline = await checkConnection();
+        
+        if (wasOnline && !isNowOnline) {
+          consecutiveFailures++;
+          checkInterval = Math.min(checkInterval * 1.5, maxInterval);
+          
+          // Network lost - show notification if not already visible
+          if (!notificationId) {
+            setTimeout(() => showNetworkAlert(), 1000);
+          }
+        } else if (isNowOnline) {
+          // Reset interval when connection is restored
+          consecutiveFailures = 0;
+          checkInterval = 10000;
         }
-      }
-    }, 3000); // Check every 3 seconds
+        
+        // Schedule next check
+        scheduleNextCheck();
+      }, checkInterval);
+    };
+    
+    scheduleNextCheck();
 
     return () => {
-      console.log('🔌 Cleaning up network monitoring');
-      clearInterval(monitorInterval);
+      // No-op
     };
   }, [isConnected, isOnline, notificationId, showNetworkAlert, hideNetworkAlert, checkConnection]);
 
@@ -156,7 +160,6 @@ export async function withNetworkCheck<T>(
     const isOnline = response.ok;
     
     if (!isOnline) {
-      console.log('❌ Network check failed before operation');
       if (onNetworkError) {
         onNetworkError();
       }
@@ -176,7 +179,6 @@ export async function withNetworkCheck<T>(
                           errorMessage.includes('AbortError');
     
     if (isNetworkError && onNetworkError) {
-      console.log('❌ Network error during operation:', errorMessage);
       onNetworkError();
     }
     

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Platform, StatusBar, Image } from 'react-native';
 import { Menu, X, User, Share2, Shield, FileText, Globe, Settings, MessageCircle, HelpCircle, LogOut, Trash2, CreditCard as Edit3 } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,13 +14,9 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 380;
-const isVerySmallScreen = screenWidth < 350;
-const isTinyScreen = screenWidth < 320;
 const isTablet = screenWidth >= 768;
-const isLargeTablet = screenWidth >= 1024;
-const isLandscape = screenWidth > screenHeight;
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -40,6 +36,16 @@ export default function GlobalHeader({
   const { profile, signOut } = useAuth();
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  
+  // Fixed status bar height calculation to prevent layout shifts
+  const statusBarHeight = React.useMemo(() => {
+    return Platform.OS === 'ios' 
+      ? (isTablet ? 60 : 50) 
+      : (StatusBar.currentHeight || 0) + (isTablet ? 20 : 16);
+  }, []);
+
+  // Memoize styles to prevent recreation on each render
+  const styles = React.useMemo(() => getHeaderStyles(statusBarHeight), [statusBarHeight]);
 
   // Animation values
   const menuScale = useSharedValue(1);
@@ -60,14 +66,21 @@ export default function GlobalHeader({
     if (item.action === 'logout') {
       await handleLogout();
     } else if (item.route) {
-      router.push(item.route);
+      // Close menu first, then navigate with delay
       setMenuVisible(false);
+      setTimeout(() => {
+        router.push(item.route);
+      }, 100);
     }
   };
 
   const handleEditProfile = () => {
-    router.push('/edit-profile');
+    // Ensure menu is closed immediately and state is reset
     setMenuVisible(false);
+    // Add small delay to ensure state update before navigation
+    setTimeout(() => {
+      router.push('/edit-profile');
+    }, 100);
   };
 
   const handleLogout = async (): Promise<void> => {
@@ -75,26 +88,24 @@ export default function GlobalHeader({
     
     try {
       await signOut();
+      // Let AuthContext handle navigation via auth state change
     } catch (error) {
-      console.error('Logout error:', error);
+      // Fallback navigation if signOut fails
+      router.replace('/(auth)/login');
     }
-    
-    router.replace('/(auth)/login');
   };
 
   const handleMenuPress = () => {
-    menuScale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
-    setTimeout(() => {
+    menuScale.value = withSpring(0.9, { damping: 15, stiffness: 400 }, () => {
       menuScale.value = withSpring(1, { damping: 15, stiffness: 400 });
-    }, 100);
+    });
     setMenuVisible(!menuVisible);
   };
 
   const handleCoinPress = () => {
-    coinScale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
-    setTimeout(() => {
+    coinScale.value = withSpring(0.95, { damping: 15, stiffness: 400 }, () => {
       coinScale.value = withSpring(1, { damping: 15, stiffness: 400 });
-    }, 100);
+    });
   };
 
   const menuAnimatedStyle = useAnimatedStyle(() => ({
@@ -132,7 +143,7 @@ export default function GlobalHeader({
                   defaultSource={require('@/assets/images/icon.png')}
                 />
               ) : (
-                <User size={isTinyScreen ? 24 : isVerySmallScreen ? 28 : isTablet ? 36 : 32} color="white" />
+                <User size={isSmallScreen ? 28 : isTablet ? 40 : 36} color="white" />
               )}
             </TouchableOpacity>
             <View style={styles.profileInfo}>
@@ -141,7 +152,7 @@ export default function GlobalHeader({
                   styles.profileName, 
                   { 
                     color: 'white',
-                    fontSize: isTinyScreen ? 14 : isVerySmallScreen ? 16 : isTablet ? 20 : 18
+                    fontSize: isSmallScreen ? 18 : isTablet ? 24 : 20
                   }
                 ]} numberOfLines={1}>
                   {profile?.username || 'User'}
@@ -150,7 +161,7 @@ export default function GlobalHeader({
                   styles.profileEmail, 
                   { 
                     color: 'rgba(255, 255, 255, 0.8)',
-                    fontSize: isTinyScreen ? 11 : isVerySmallScreen ? 13 : isTablet ? 16 : 14
+                    fontSize: isSmallScreen ? 15 : isTablet ? 18 : 16
                   }
                 ]} numberOfLines={1}>
                   {profile?.email || 'user@example.com'}
@@ -163,7 +174,7 @@ export default function GlobalHeader({
               style={[styles.editButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
               onPress={handleEditProfile}
             >
-              <Edit3 size={isTinyScreen ? 16 : isVerySmallScreen ? 18 : isTablet ? 24 : 20} color="white" />
+              <Edit3 size={isSmallScreen ? 22 : isTablet ? 28 : 24} color="white" />
             </TouchableOpacity>
           </View>
         </View>
@@ -175,7 +186,7 @@ export default function GlobalHeader({
           <View style={styles.themeSectionContent}>
             <Text style={[styles.themeLabel, { 
               color: colors.text,
-              fontSize: isTinyScreen ? 13 : isVerySmallScreen ? 15 : isTablet ? 18 : 16
+              fontSize: isSmallScreen ? 17 : isTablet ? 20 : 18
             }]}>🌙 Dark Mode</Text>
             <ThemeToggle />
           </View>
@@ -189,17 +200,17 @@ export default function GlobalHeader({
               styles.sideMenuItem, 
               { 
                 borderBottomColor: colors.border,
-                paddingVertical: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 18 : 16
+                paddingVertical: isSmallScreen ? 14 : isTablet ? 18 : 16
               }
             ]}
             onPress={() => handleItemPress(item)}
           >
-            <item.icon size={isTinyScreen ? 18 : isVerySmallScreen ? 20 : isTablet ? 26 : 22} color={item.color || colors.primary} />
+            <item.icon size={isSmallScreen ? 20 : isTablet ? 26 : 22} color={item.color || colors.primary} />
             <Text style={[
               styles.sideMenuText, 
               { 
                 color: item.color || colors.text,
-                fontSize: isTinyScreen ? 13 : isVerySmallScreen ? 15 : isTablet ? 18 : 16
+                fontSize: isSmallScreen ? 15 : isTablet ? 18 : 16
               }
             ]}>
               {item.title}
@@ -213,7 +224,7 @@ export default function GlobalHeader({
             styles.appName, 
             { 
               color: colors.text,
-              fontSize: isTinyScreen ? 16 : isVerySmallScreen ? 18 : isTablet ? 24 : 20
+              fontSize: isSmallScreen ? 20 : isTablet ? 28 : 24
             }
           ]}>
             VidGro
@@ -222,7 +233,7 @@ export default function GlobalHeader({
             styles.appVersion, 
             { 
               color: colors.textSecondary,
-              fontSize: isTinyScreen ? 11 : isVerySmallScreen ? 13 : isTablet ? 16 : 14
+              fontSize: isSmallScreen ? 13 : isTablet ? 16 : 14
             }
           ]}>
             Version 1.0.0
@@ -232,6 +243,7 @@ export default function GlobalHeader({
     </View>
   );
 
+  
   return (
     <>
       <LinearGradient
@@ -245,18 +257,18 @@ export default function GlobalHeader({
               onPress={handleMenuPress}
               activeOpacity={0.7}
             >
-              <Menu size={isTinyScreen ? 20 : isVerySmallScreen ? 22 : isTablet ? 28 : 24} color="white" />
+              <Menu size={isSmallScreen ? 26 : isTablet ? 32 : 28} color="white" />
             </AnimatedTouchableOpacity>
             <Text style={[
               styles.brandTitle,
-              { fontSize: isTinyScreen ? 16 : isVerySmallScreen ? 18 : 22 }
+              { fontSize: isSmallScreen ? 26 : isTablet ? 32 : 28 }
             ]}>
               VidGro
             </Text>
           </View>
           
           <View style={styles.rightSection}>
-            {showCoinDisplay && profile && (
+            {showCoinDisplay && (
               <AnimatedTouchableOpacity 
                 style={[styles.coinDisplay, coinAnimatedStyle]}
                 onPress={handleCoinPress}
@@ -266,16 +278,16 @@ export default function GlobalHeader({
                   colors={isDark ? ['rgba(74, 144, 226, 0.3)', 'rgba(74, 144, 226, 0.15)'] : ['rgba(255, 255, 255, 0.25)', 'rgba(255, 255, 255, 0.15)']}
                   style={[styles.coinBadge, {
                     borderColor: isDark ? 'rgba(74, 144, 226, 0.4)' : 'rgba(255, 255, 255, 0.3)',
-                                      paddingHorizontal: isTinyScreen ? 6 : isVerySmallScreen ? 8 : isTablet ? 12 : 10,
-                  paddingVertical: isTinyScreen ? 4 : isVerySmallScreen ? 6 : isTablet ? 8 : 6
+                    paddingHorizontal: isSmallScreen ? 10 : isTablet ? 16 : 12,
+                    paddingVertical: isSmallScreen ? 8 : isTablet ? 10 : 8
                   }]}
                 >
-                  <Text style={[styles.coinIcon, { fontSize: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14 }]}>🪙</Text>
+                  <Text style={[styles.coinIcon, { fontSize: isSmallScreen ? 16 : isTablet ? 20 : 18 }]}>🪙</Text>
                   <Text style={[
                     styles.coinText,
-                    { fontSize: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 18 : 16 }
+                    { fontSize: isSmallScreen ? 16 : isTablet ? 20 : 18 }
                   ]}>
-                    {profile.coins.toLocaleString()}
+                    {profile?.coins?.toLocaleString() || '0'}
                   </Text>
                 </LinearGradient>
               </AnimatedTouchableOpacity>
@@ -296,11 +308,11 @@ export default function GlobalHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const getHeaderStyles = (statusBarHeight: number) => StyleSheet.create({
   header: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + (isTablet ? 20 : 16) : (isTablet ? 60 : 50),
-    paddingBottom: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14,
-    paddingHorizontal: isTinyScreen ? 12 : isVerySmallScreen ? 16 : isTablet ? 24 : 20,
+    paddingTop: statusBarHeight,
+    paddingBottom: isSmallScreen ? 16 : isTablet ? 20 : 18,
+    paddingHorizontal: isSmallScreen ? 18 : isTablet ? 28 : 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -311,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    height: isTinyScreen ? 36 : isVerySmallScreen ? 40 : isTablet ? 48 : 44,
+    height: isSmallScreen ? 48 : isTablet ? 56 : 52,
   },
   leftSection: {
     flexDirection: 'row',
@@ -325,13 +337,13 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   menuButton: {
-    marginRight: isTinyScreen ? 8 : isVerySmallScreen ? 10 : isTablet ? 16 : 14,
-    padding: isTinyScreen ? 4 : isVerySmallScreen ? 6 : isTablet ? 8 : 6,
-    width: isTinyScreen ? 32 : isVerySmallScreen ? 36 : isTablet ? 44 : 40,
-    height: isTinyScreen ? 32 : isVerySmallScreen ? 36 : isTablet ? 44 : 40,
+    marginRight: isSmallScreen ? 10 : isTablet ? 16 : 14,
+    padding: isSmallScreen ? 6 : isTablet ? 8 : 6,
+    width: isSmallScreen ? 36 : isTablet ? 44 : 40,
+    height: isSmallScreen ? 36 : isTablet ? 44 : 40,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: isTinyScreen ? 16 : isVerySmallScreen ? 18 : isTablet ? 22 : 20,
+    borderRadius: isSmallScreen ? 18 : isTablet ? 22 : 20,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   brandTitle: {
@@ -339,19 +351,19 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0.5,
     flex: 1,
-    fontSize: isTinyScreen ? 18 : isVerySmallScreen ? 20 : isTablet ? 28 : 24,
+    fontSize: isSmallScreen ? 30 : isTablet ? 42 : 38,
   },
   coinDisplay: {
     flexShrink: 0,
-    borderRadius: isTinyScreen ? 16 : isVerySmallScreen ? 18 : isTablet ? 24 : 20,
+    borderRadius: isSmallScreen ? 18 : isTablet ? 24 : 20,
     overflow: 'hidden',
   },
   coinBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: isTinyScreen ? 16 : isVerySmallScreen ? 18 : isTablet ? 24 : 20,
+    borderRadius: isSmallScreen ? 18 : isTablet ? 24 : 20,
     borderWidth: 1,
-    minWidth: isTinyScreen ? 50 : isVerySmallScreen ? 60 : isTablet ? 80 : 70,
+    minWidth: isSmallScreen ? 60 : isTablet ? 80 : 70,
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -360,7 +372,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   coinIcon: {
-    marginRight: isTinyScreen ? 3 : isVerySmallScreen ? 4 : isTablet ? 6 : 5,
+    marginRight: isSmallScreen ? 4 : isTablet ? 6 : 5,
   },
   coinText: {
     color: 'white',
@@ -379,9 +391,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   sideMenuHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + (isTablet ? 20 : 16) : (isTablet ? 60 : 50),
-    paddingBottom: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 20 : 18,
-    paddingHorizontal: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 20 : 16,
+    paddingTop: statusBarHeight,
+    paddingBottom: isSmallScreen ? 18 : isTablet ? 24 : 20,
+    paddingHorizontal: isSmallScreen ? 18 : isTablet ? 28 : 24,
   },
   sideMenuHeaderContent: {
     flexDirection: 'row',
@@ -392,10 +404,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   editButton: {
-    padding: isTinyScreen ? 6 : isVerySmallScreen ? 8 : isTablet ? 10 : 8,
-    borderRadius: isTinyScreen ? 16 : isVerySmallScreen ? 18 : isTablet ? 24 : 20,
-    width: isTinyScreen ? 32 : isVerySmallScreen ? 36 : isTablet ? 44 : 40,
-    height: isTinyScreen ? 32 : isVerySmallScreen ? 36 : isTablet ? 44 : 40,
+    padding: isSmallScreen ? 8 : isTablet ? 10 : 8,
+    borderRadius: isSmallScreen ? 18 : isTablet ? 24 : 20,
+    width: isSmallScreen ? 36 : isTablet ? 44 : 40,
+    height: isSmallScreen ? 36 : isTablet ? 44 : 40,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -405,8 +417,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   themeSection: {
-    paddingHorizontal: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 20 : 16,
-    paddingVertical: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14,
+    paddingHorizontal: isSmallScreen ? 14 : isTablet ? 20 : 16,
+    paddingVertical: isSmallScreen ? 12 : isTablet ? 16 : 14,
     borderBottomWidth: 1,
   },
   themeSectionContent: {
@@ -424,12 +436,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   profileAvatar: {
-    width: isTinyScreen ? 40 : isVerySmallScreen ? 44 : isTablet ? 56 : 48,
-    height: isTinyScreen ? 40 : isVerySmallScreen ? 44 : isTablet ? 56 : 48,
-    borderRadius: isTinyScreen ? 20 : isVerySmallScreen ? 22 : isTablet ? 28 : 24,
+    width: isSmallScreen ? 44 : isTablet ? 56 : 48,
+    height: isSmallScreen ? 44 : isTablet ? 56 : 48,
+    borderRadius: isSmallScreen ? 22 : isTablet ? 28 : 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: isTinyScreen ? 8 : isVerySmallScreen ? 10 : isTablet ? 14 : 12,
+    marginRight: isSmallScreen ? 10 : isTablet ? 14 : 12,
     flexShrink: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -441,7 +453,7 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: isTinyScreen ? 20 : isVerySmallScreen ? 22 : isTablet ? 28 : 24,
+    borderRadius: isSmallScreen ? 22 : isTablet ? 28 : 24,
   },
   profileInfo: {
     flex: 1,
@@ -459,18 +471,18 @@ const styles = StyleSheet.create({
   sideMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 20 : 16,
+    paddingHorizontal: isSmallScreen ? 14 : isTablet ? 20 : 16,
     borderBottomWidth: 1,
   },
   sideMenuText: {
-    marginLeft: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14,
+    marginLeft: isSmallScreen ? 12 : isTablet ? 16 : 14,
     fontWeight: '500',
   },
   versionSection: {
     marginTop: 'auto',
-    paddingTop: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14,
-    paddingHorizontal: isTinyScreen ? 12 : isVerySmallScreen ? 14 : isTablet ? 20 : 16,
-    paddingBottom: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14,
+    paddingTop: isSmallScreen ? 12 : isTablet ? 16 : 14,
+    paddingHorizontal: isSmallScreen ? 14 : isTablet ? 20 : 16,
+    paddingBottom: isSmallScreen ? 12 : isTablet ? 16 : 14,
     borderTopWidth: 1,
     alignItems: 'center',
   },

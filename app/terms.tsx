@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, FileText, Scale, Shield, TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import { FileText, Scale, Shield, TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 
 export default function TermsScreen() {
   const { colors, isDark } = useTheme();
@@ -20,15 +21,17 @@ If you do not agree to abide by the above, please do not use this service. These
     {
       title: 'Service Description',
       icon: Shield,
-      content: `VidGro is a video promotion and monetization platform that allows users to:
+      content: `VidGro is a video promotion platform that enables users to:
 
-• Watch videos and earn virtual coins
-• Promote their own YouTube videos using coins
-• Purchase additional coins through in-app purchases
-• Subscribe to VIP memberships for enhanced features
-• Refer friends and earn referral bonuses
+• Watch YouTube videos and earn coins (1 coin per video)
+• Promote videos using earned or purchased coins
+• Get guaranteed real views from active users
+• Subscribe to VIP for unlimited daily earnings
+• Earn referral bonuses (10 coins per friend)
+• Configure ad preferences and frequency
+• Track analytics and promotion performance
 
-The service is provided "as is" and we reserve the right to modify or discontinue features at any time.`
+The service operates on a coin-based economy where users exchange time watching videos for promotion credits. We reserve the right to modify features and coin values.`
     },
     {
       title: 'User Accounts and Responsibilities',
@@ -47,31 +50,30 @@ You must be at least 13 years old to use this service. Users under 18 require pa
     {
       title: 'Prohibited Activities',
       icon: AlertTriangle,
-      content: `You may not:
+      content: `Strictly prohibited activities include:
 
-• Upload, promote, or share illegal, harmful, or inappropriate content
-• Attempt to manipulate the coin earning system
-• Use the service for spam or fraudulent activities
-• Reverse engineer or attempt to hack the platform
-• Violate any applicable laws or regulations
-• Infringe on intellectual property rights
-• Harass or abuse other users or our support team
+• Using bots, scripts, or automation tools
+• Creating multiple accounts to exploit the system
+• Tampering with the app or bypassing security measures
+• Promoting copyrighted content without permission
+• Sharing adult, violent, or misleading content
+• Using modified or jailbroken devices
+• Attempting to hack or reverse-engineer the app
+• Manipulating view counts or coin earnings
+• Using VPNs to bypass regional restrictions
+• Selling or transferring accounts
+• Abusing the referral system
 
-Violation of these terms may result in account suspension or termination.`
+Violations result in immediate account termination and loss of all coins.`
     }
   ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Terms of Service</Text>
-          <FileText size={24} color="white" />
-        </View>
-      </View>
+      <ScreenHeader 
+        title="Terms of Service" 
+        icon={FileText}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.introSection, { backgroundColor: colors.surface }]}>
@@ -79,7 +81,7 @@ Violation of these terms may result in account suspension or termination.`
           <Text style={[styles.introText, { color: colors.textSecondary }]}>
             Please read these Terms of Service carefully before using VidGro. These terms govern your use of our platform and services.
           </Text>
-          <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last updated: January 15, 2025</Text>
+          <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last updated: December 27, 2024</Text>
         </View>
 
         {sections.map((section, index) => (
@@ -98,12 +100,13 @@ Violation of these terms may result in account suspension or termination.`
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Virtual Currency</Text>
           </View>
           <Text style={[styles.sectionContent, { color: colors.textSecondary }]}>
-            Coins are virtual currency with no real-world value. They can be:
-            {'\n\n'}• Earned by watching videos
-            {'\n'}• Purchased through in-app purchases
-            {'\n'}• Used to promote videos on the platform
-            {'\n'}• Lost if account is terminated for violations
-            {'\n\n'}Coins cannot be exchanged for real money or transferred between accounts. We reserve the right to adjust coin values and rewards at any time.
+            VidGro Coins are virtual credits with no monetary value:
+            {'\n\n'}• Earn 1 coin per video watched (30-second minimum)
+            {'\n'}• Daily limit: 50 coins (unlimited with VIP)
+            {'\n'}• Referral bonus: 10 coins per successful referral
+            {'\n'}• Purchase packages: 100-10,000 coins
+            {'\n'}• Promotion cost: 1 coin = 1 guaranteed view
+            {'\n\n'}Coins are non-transferable, non-refundable, and expire after 1 year of inactivity. We may adjust earning rates and costs to maintain platform balance.
           </Text>
         </View>
 
@@ -155,7 +158,7 @@ Violation of these terms may result in account suspension or termination.`
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Governing Law and Disputes</Text>
           </View>
           <Text style={[styles.sectionContent, { color: colors.textSecondary }]}>
-            These terms are governed by the laws of [Your Jurisdiction].
+            These terms are governed by applicable international laws and regulations.
             {'\n\n'}Any disputes will be resolved through binding arbitration, except for:
             {'\n'}• Small claims court matters
             {'\n'}• Intellectual property disputes
@@ -167,10 +170,10 @@ Violation of these terms may result in account suspension or termination.`
         <View style={[styles.contactSection, { backgroundColor: colors.primary + '20', borderLeftColor: colors.primary }]}>
           <Text style={[styles.contactTitle, { color: colors.primary }]}>Questions About These Terms?</Text>
           <Text style={[styles.contactText, { color: colors.primary }]}>
-            If you have any questions about these Terms of Service, please contact us:
-            {'\n\n'}Email: legal@vidgro.com
-            {'\n'}Address: 123 Legal Street, Terms City, TC 12345
-            {'\n'}Phone: +1 (555) 123-4567
+            For questions about these Terms of Service:
+            {'\n\n'}Email: support@vidgro.app
+            {'\n'}In-App: Settings → Contact Support
+            {'\n'}Response Time: 24-48 hours
           </Text>
         </View>
 

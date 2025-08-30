@@ -34,10 +34,14 @@ interface UserAnalytics {
 }
 
 interface RecentActivity {
-  activity_type: string;
+  id: string;
+  activity_type?: string;
+  type?: string;
   amount: number;
   description: string;
-  created_at: string;
+  created_at?: string;
+  timestamp?: string;
+  status: string;
 }
 
 interface VideoAnalytics {
@@ -121,7 +125,6 @@ export default function Analytics() {
 
       const initTimeout = setTimeout(() => {
         if (loading) {
-          console.warn('Analytics loading timeout - showing fallback data');
           setHasError(true);
           setLoadingStates({ analytics: false, videos: false, activity: false });
           setLoading(false);
@@ -139,12 +142,11 @@ export default function Analytics() {
             if (supabase) {
               const { data: updatedCount, error: holdsError } = await supabase.rpc('check_and_update_expired_holds');
               if (!holdsError && updatedCount && updatedCount > 0) {
-                console.log(`${updatedCount} videos automatically activated from hold`);
                 fetchAnalytics();
               }
             }
           } catch (error) {
-            console.error('Error checking expired holds:', error);
+            // Ignore status check errors
           }
         }
       }, 30000);
@@ -156,11 +158,7 @@ export default function Analytics() {
     }
   }, [user, analyticsEnabled]);
 
-  useEffect(() => {
-    videos.forEach((video, index) => {
-      console.log(`Video ${index}:`, JSON.stringify(video, null, 2));
-    });
-  }, [videos]);
+  // Removed unnecessary useEffect for videos processing
 
   const fetchAnalytics = async () => {
     if (!user?.id) return;
@@ -186,7 +184,7 @@ export default function Analytics() {
 
       // Calculate additional stats
       const totalVideosPromoted = videosData?.length || 0;
-      const totalCoinsEarned = videosData?.reduce((sum, video) => 
+      const totalCoinsEarned = videosData?.reduce((sum: number, video: any) => 
         sum + (video.coins_earned_total || 0), 0) || 0;
 
       // Update analytics state with the combined data
@@ -198,7 +196,7 @@ export default function Analytics() {
 
       // Set videos data for the promoted videos section
       if (videosData && videosData.length > 0) {
-        setVideos(videosData.map(video => ({
+        setVideos(videosData.map((video: any) => ({
           video_id: video.id,
           title: video.title || 'Untitled Video',
           views_count: video.views_count || 0,
@@ -217,7 +215,7 @@ export default function Analytics() {
         setVideos([]);
       }
 
-      // Get recent activity from transactions
+      // Get recent activity from transactions table
       const { data: activityData, error: activityError } = await getSupabase()
         .from('transactions')
         .select('id, transaction_type, amount, description, created_at')
@@ -225,34 +223,22 @@ export default function Analytics() {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      console.log(' Raw transaction data received:', JSON.stringify(activityData, null, 2));
-
       if (!activityError && activityData && activityData.length > 0) {
-        setRecentActivity(activityData.map(tx => {
-          console.log(' Processing transaction:', {
-            id: tx.id,
-            transaction_type: tx.transaction_type,
-            amount: tx.amount,
-            description: tx.description,
-            created_at: tx.created_at
-          });
-          
-          return {
-            id: tx.id,
-            type: tx.transaction_type || 'unknown',
-            amount: tx.amount || 0,
-            description: tx.description || `${formatTransactionType(tx.transaction_type || 'unknown')} transaction`,
-            timestamp: tx.created_at,
-            status: 'completed'
-          };
-        }));
+        setRecentActivity(activityData.map((tx: any) => ({
+          id: tx.id,
+          type: tx.transaction_type || 'unknown',
+          amount: tx.amount || 0,
+          description: tx.description || `${formatTransactionType(tx.transaction_type || 'unknown')} transaction`,
+          timestamp: tx.created_at,
+          status: 'completed'
+        })));
       } else {
         // If no transactions found, create some sample data based on video activities
-        console.log(' No transactions found, creating sample activity data');
+        
         const sampleActivity = [];
         
         if (videosData && videosData.length > 0) {
-          videosData.slice(0, 3).forEach((video, index) => {
+          videosData.slice(0, 3).forEach((video: any, index: number) => {
             sampleActivity.push({
               id: `sample-${index}`,
               type: 'video_promotion',
@@ -280,7 +266,7 @@ export default function Analytics() {
       }
 
     } catch (error) {
-      console.error('Error fetching analytics:', error);
+      
       setHasError(true);
     } finally {
       setLoading(false);
@@ -307,24 +293,24 @@ export default function Analytics() {
 
   const getStatusIcon = (status: string, isRepromoted?: boolean) => {
     if (isRepromoted) {
-      console.log('StatusIcon: TrendingUp');
+      
       return TrendingUp;
     }
     switch (status) {
       case 'active':
-        console.log('StatusIcon: Play');
+        
         return Play;
       case 'completed':
-        console.log('StatusIcon: CheckCircle');
+        
         return CheckCircle;
       case 'paused':
-        console.log('StatusIcon: Pause');
+        
         return Pause;
       case 'on_hold':
-        console.log('StatusIcon: Timer');
+        
         return Timer;
       default:
-        console.log('StatusIcon: Default Play');
+        
         return Play;
     }
   };
@@ -333,8 +319,7 @@ export default function Analytics() {
     if (!type) return 'Unknown Transaction';
     
     // Add debugging to see what transaction types we're getting
-    console.log('Transaction type received:', type);
-    
+
     switch (type.toLowerCase()) {
       case 'video_promotion': 
       case 'video promotion':
@@ -364,6 +349,12 @@ export default function Analytics() {
       case 'watch reward':
       case 'reward':
         return 'Watch Reward';
+      case 'ad_reward':
+      case 'ad reward':
+        return 'Ad Reward';
+      case 'rating_reward':
+      case 'rating reward':
+        return 'Rating Reward';
       case 'bonus':
         return 'Bonus';
       case 'earning':
@@ -376,7 +367,7 @@ export default function Analytics() {
       default: 
         // Better formatting for unknown types
         const formatted = type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        console.log('Formatted unknown transaction type:', formatted);
+        
         return formatted;
     }
   };
@@ -641,14 +632,14 @@ export default function Analytics() {
           ) : (
             <>
               {getDisplayedActivity().map((activity, index) => (
-                <View key={`${activity.type}-${activity.timestamp}-${index}`} style={[styles.activityCard, { backgroundColor: colors.surface }]}>
+                <View key={`${activity.type || activity.activity_type}-${activity.timestamp || activity.created_at}-${index}`} style={[styles.activityCard, { backgroundColor: colors.surface }]}>
                   <View style={styles.activityHeader}>
                     <View style={styles.activityInfo}>
                       <Text style={[styles.activityType, { color: colors.text }]}>
-                        {formatTransactionType(activity.type)}
+                        {formatTransactionType(activity.type || activity.activity_type || 'unknown')}
                       </Text>
                       <Text style={[styles.activityDate, { color: colors.textSecondary }]}>
-                        {new Date(activity.timestamp).toLocaleDateString('en-US', {
+                        {new Date(activity.timestamp || activity.created_at || Date.now()).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',

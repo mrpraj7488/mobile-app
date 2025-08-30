@@ -152,7 +152,7 @@ export default function PromoteTab() {
         videoId  // Use videoId instead of youtubeUrl
       );
 
-      console.log('Promotion result:', result); // Debug log
+       // Debug log
 
       if (result.error) {
         let errorMsg = 'Failed to promote video. Please try again.';
@@ -182,12 +182,11 @@ export default function PromoteTab() {
         showError('Error', 'Failed to promote video. Please try again.');
       }
     } catch (error) {
-      console.error('Error promoting video:', error);
-      
+
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in handlePromote - Showing network alert');
+        
         showNetworkAlert();
       } else {
         showError('Error', 'Something went wrong. Please try again.');

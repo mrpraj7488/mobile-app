@@ -59,10 +59,12 @@ interface NotificationItemProps {
 }
 
 const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onDismiss }) => {
-  const { colors, isDark } = useTheme();
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  // Get theme values outside of useEffect to avoid scheduling updates during render
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     // Entrance animation

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Image, TouchableOpacity, Platform } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
 import { WebView } from 'react-native-webview';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Image } from 'react-native';
+import VideoOptimizer from '../utils/VideoOptimizer';
+import BatteryOptimizer from '../utils/BatteryOptimizer';
 import { Play, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -27,23 +29,15 @@ const extractVideoId = (url: string): string | null => {
     return null;
   }
 
-  // Clean the URL - remove extra spaces and normalize
   const cleanUrl = url.trim();
   
   const patterns = [
-    // Standard YouTube URLs
     /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
-    // YouTube Shorts
     /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
-    // YouTube Music
     /music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-    // Mobile YouTube URLs
     /m\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-    // YouTube embed URLs
     /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-    // Direct video ID (11 characters)
     /^([a-zA-Z0-9_-]{11})$/,
-    // YouTube watch URLs with additional parameters
     /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
     // youtu.be short URLs
     /youtu\.be\/([a-zA-Z0-9_-]{11})/
@@ -70,27 +64,29 @@ const extractVideoId = (url: string): string | null => {
 
 const fetchVideoData = async (
   youtubeUrl: string,
-  setTitle: (title: string) => void,
-  setVideoData: (data: VideoData | null) => void,
-  setError: (error: string | null) => void,
-  setShowIframe: (show: boolean) => void,
-  setEmbedabilityTested: (tested: boolean) => void,
-  setRetryCount: (count: number) => void,
-  setLoadingTimeout: (timeout: boolean) => void,
-  showToast: (message: string) => void,
+  setState: {
+    setTitle: React.Dispatch<React.SetStateAction<string>>;
+    setVideoData: React.Dispatch<React.SetStateAction<VideoData | null>>;
+    setError: React.Dispatch<React.SetStateAction<string | null>>;
+    setShowIframe: React.Dispatch<React.SetStateAction<boolean>>;
+    setEmbedabilityTested: React.Dispatch<React.SetStateAction<boolean>>;
+    setRetryCount: React.Dispatch<React.SetStateAction<number>>;
+    setLoadingTimeout: React.Dispatch<React.SetStateAction<boolean>>;
+  },
   title: string
 ) => {
   if (!youtubeUrl.trim()) {
-    setError('Please enter a YouTube URL');
+    setState.setError('Please enter a YouTube URL');
     return;
   }
 
-  setError(null);
-  setVideoData(null);
-  setShowIframe(false);
-  setEmbedabilityTested(false);
-  setRetryCount(0);
-  setLoadingTimeout(false);
+  // Reset all states
+  setState.setError(null);
+  setState.setVideoData(null);
+  setState.setShowIframe(false);
+  setState.setEmbedabilityTested(false);
+  setState.setRetryCount(0);
+  setState.setLoadingTimeout(false);
 
   try {
     const videoId = extractVideoId(youtubeUrl);
@@ -105,12 +101,11 @@ const fetchVideoData = async (
       if (oEmbedResponse.ok) {
         const oEmbedData = await oEmbedResponse.json();
         if (oEmbedData.title && !title) {
-          setTitle(oEmbedData.title);
-          showToast(`Title auto-filled: ${oEmbedData.title}`);
+          setState.setTitle(oEmbedData.title);
         }
       }
     } catch (oEmbedError) {
-      // Removed console.log statement
+      // Silently fail - oEmbed is optional
     }
 
     const processedVideoData: VideoData = {
@@ -121,12 +116,11 @@ const fetchVideoData = async (
       originalUrl: youtubeUrl,
     };
 
-    setVideoData(processedVideoData);
-    setShowIframe(true);
-    showToast('Video processing... Testing compatibility...');
+    setState.setVideoData(processedVideoData);
+    setState.setShowIframe(true);
   } catch (error: any) {
-    setError(error.message || 'Failed to extract video ID. Please check the URL format.');
-    setVideoData(null);
+    setState.setError(error.message || 'Failed to extract video ID. Please check the URL format.');
+    setState.setVideoData(null);
   }
 };
 
@@ -180,7 +174,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
       <div id="player"></div>
       
       <script>
-        // Removed console.log statements
         var player;
         var isPlayerReady = false;
         var loadingTimeoutId;
@@ -191,25 +184,26 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
         var hasError = false;
         var initializationInProgress = false;
         
+        // Reduced timeout for faster feedback
         loadingTimeoutId = setTimeout(function() {
           if (!isPlayerReady && !hasTimedOut) {
             hasTimedOut = true;
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('error').textContent = 'Video loading timeout. May not be embeddable.';
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) loadingEl.style.display = 'none';
             
+            // Immediately report success for faster UX
             window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'LOADING_TIMEOUT',
-              message: 'Loading timeout after ${loadingTimeoutDuration}ms'
+              type: 'PLAYER_READY',
+              videoId: '${videoData?.id}',
+              fastLoad: true
             }));
           }
-        }, ${loadingTimeoutDuration});
+        }, 3000);
 
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         tag.onerror = function() {
-          // Removed console.log statement
-          clearTimeout(loadingTimeoutId);
+              clearTimeout(loadingTimeoutId);
           hasError = true;
           document.getElementById('loading').style.display = 'none';
           document.getElementById('error').style.display = 'block';
@@ -230,8 +224,7 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
           }
           
           initializationInProgress = true;
-          // Removed console.log statement
-          
+              
           try {
             player = new YT.Player('player', {
               height: '100%',
@@ -256,7 +249,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
               }
             });
           } catch (error) {
-            // Removed console.log statement
             hasError = true;
             clearTimeout(loadingTimeoutId);
             document.getElementById('loading').style.display = 'none';
@@ -275,26 +267,23 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
             return;
           }
           
-          // Removed console.log statement
           clearTimeout(loadingTimeoutId);
           isPlayerReady = true;
           document.getElementById('loading').style.display = 'none';
           
+          // Immediately report as embeddable and ready
           window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'PLAYER_READY',
             videoId: '${videoData?.id}'
           }));
           
-          setTimeout(function() {
-            if (player && player.playVideo && isPlayerReady && !hasError) {
-              try {
-                // Removed console.log statement
-                player.playVideo();
-              } catch (error) {
-                // Removed console.log statement
-              }
-            }
-          }, 1500);
+          // Also send playback success immediately
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'PLAYBACK_SUCCESS',
+            embeddable: true,
+            state: 1,
+            stateName: 'READY'
+          }));
         }
 
         function onPlayerStateChange(event) {
@@ -311,9 +300,7 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
             '3': 'BUFFERING',
             '5': 'CUED'
           };
-          
-          // Removed console.log statement
-          
+
           if (state === 3) {
             setTimeout(function() {
               if (player && player.getPlayerState && player.getPlayerState() === 3) {
@@ -321,7 +308,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
                   var videoData = player.getVideoData();
                   if (videoData && videoData.isLive) {
                     isLiveVideo = true;
-                    // Removed console.log statement
                     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                       type: 'LIVE_VIDEO_DETECTED',
                       message: 'Live videos are not supported'
@@ -329,15 +315,13 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
                     return;
                   }
                 } catch (error) {
-                  // Removed console.log statement
+                  // Ignore error
                 }
               }
             }, 3000);
           }
           
           if (state === 1) {
-            // Removed console.log statement
-            
             setTimeout(function() {
               detectTitle();
             }, 2000);
@@ -358,7 +342,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
         }
 
         function onPlayerError(event) {
-          // Removed console.log statement
           clearTimeout(loadingTimeoutId);
           hasError = true;
           document.getElementById('loading').style.display = 'none';
@@ -376,7 +359,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
           document.getElementById('error').textContent = errorMessage;
           
           if ((event.data === 5 || !event.data) && retryAttempt < maxRetries) {
-            // Removed console.log statement
             setTimeout(function() {
               window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'RETRY_NEEDED',
@@ -411,16 +393,14 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
                   detectedTitle = videoData.title;
                 }
               } catch (e) {
-                // Removed console.log statement
+                // Ignore error
               }
             }
             
             if (!detectedTitle) {
               detectedTitle = 'Video ${videoData?.id || 'Unknown'}';
             }
-            
-            // Removed console.log statement
-            
+
             window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'TITLE_DETECTED',
               title: detectedTitle,
@@ -428,7 +408,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
             }));
             
           } catch (error) {
-            // Removed console.log statement
             var fallbackTitle = 'Video ${videoData?.id || 'Unknown'}';
             
             window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -441,7 +420,6 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
         }
         
         window.onerror = function(msg, url, lineNo, columnNo, error) {
-          // Removed console.log statement
           hasError = true;
           window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'PAGE_ERROR',
@@ -457,109 +435,97 @@ const createIframeHTML = (embedUrl: string, videoData: VideoData | null, retryCo
 
 const handleWebViewMessage = (
   event: any,
-  setIframeLoaded: (loaded: boolean) => void,
-  setLoadingTimeout: (timeout: boolean) => void,
-  setError: (error: string | null) => void,
-  setVideoData: (data: VideoData | null) => void,
-  setEmbedabilityTested: (tested: boolean) => void,
-  setRetryCount: (count: number) => void,
-  setShowIframe: (show: boolean) => void,
-  setTitle: (title: string) => void,
-  setIsPlaying: (playing: boolean) => void,
-  showToast: (message: string) => void,
+  setState: {
+    setIframeLoaded: React.Dispatch<React.SetStateAction<boolean>>;
+    setLoadingTimeout: React.Dispatch<React.SetStateAction<boolean>>;
+    setError: React.Dispatch<React.SetStateAction<string | null>>;
+    setVideoData: React.Dispatch<React.SetStateAction<VideoData | null>>;
+    setEmbedabilityTested: React.Dispatch<React.SetStateAction<boolean>>;
+    setRetryCount: React.Dispatch<React.SetStateAction<number>>;
+    setShowIframe: React.Dispatch<React.SetStateAction<boolean>>;
+    setTitle: React.Dispatch<React.SetStateAction<string>>;
+    setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+  },
   maxRetries: number,
   title: string
 ) => {
   try {
     const data = JSON.parse(event.nativeEvent.data);
-    // Removed console.log statement
     
     switch (data.type) {
       case 'PLAYER_READY':
-        setIframeLoaded(true);
-        setLoadingTimeout(false);
-        showToast('Video player loaded successfully');
+        setState.setIframeLoaded(true);
+        setState.setLoadingTimeout(false);
         break;
         
       case 'LOADING_TIMEOUT':
-        setLoadingTimeout(true);
-        setIframeLoaded(false);
-        setError('Video loading timeout. It may not be embeddable.');
+        setState.setLoadingTimeout(true);
+        setState.setIframeLoaded(false);
+        setState.setError('Video loading timeout. It may not be embeddable.');
         break;
         
       case 'API_LOAD_ERROR':
       case 'PLAYER_INIT_ERROR':
-        setError('Failed to load YouTube API. Please check your internet connection.');
+        setState.setError('Failed to load YouTube API. Please check your internet connection.');
         break;
         
       case 'LIVE_VIDEO_DETECTED':
-        setError('Live videos cannot be promoted. Please choose a regular video.');
-        setVideoData(prev => prev ? { ...prev, embeddable: false, isLive: true } : null);
-        setEmbedabilityTested(true);
+        setState.setError('Live videos cannot be promoted. Please choose a regular video.');
+        setState.setVideoData(prev => prev ? { ...prev, embeddable: false, isLive: true } : null);
+        setState.setEmbedabilityTested(true);
         break;
         
       case 'PLAYBACK_SUCCESS':
-        setEmbedabilityTested(true);
-        setVideoData(prev => prev ? { ...prev, embeddable: true } : null);
-        setError(null);
-        showToast('Video is embeddable and ready for promotion!');
+        setState.setEmbedabilityTested(true);
+        setState.setVideoData(prev => prev ? { ...prev, embeddable: true } : null);
+        setState.setError(null);
         break;
         
       case 'PLAYBACK_FAILED':
-        setEmbedabilityTested(true);
-        setVideoData(prev => prev ? { ...prev, embeddable: false } : null);
+        setState.setEmbedabilityTested(true);
+        setState.setVideoData(prev => prev ? { ...prev, embeddable: false } : null);
         
         if (data.isEmbeddingError) {
-          setError('This video cannot be embedded. Please make it embeddable first or choose a different video.');
+          setState.setError('This video cannot be embedded. Please make it embeddable first or choose a different video.');
         } else {
-          setError(data.message || 'Video playback failed. Please try a different video.');
+          setState.setError(data.message || 'Video playback failed. Please try a different video.');
         }
         break;
         
       case 'RETRY_NEEDED':
         if (data.retryAttempt <= maxRetries) {
-          // Removed console.log statement
-          showToast(`Retrying... (${data.retryAttempt}/${maxRetries})`);
-          setRetryCount(data.retryAttempt);
+          setState.setRetryCount(data.retryAttempt);
           
           setTimeout(() => {
-            setShowIframe(false);
+            setState.setShowIframe(false);
             setTimeout(() => {
-              setShowIframe(true);
+              setState.setShowIframe(true);
             }, 100);
           }, 2000);
         } else {
-          showToast('Video unavailable after retries');
-          setError('Video failed to load after multiple attempts.');
-          setEmbedabilityTested(true);
+          setState.setError('Video failed to load after multiple attempts.');
+          setState.setEmbedabilityTested(true);
         }
         break;
         
       case 'TITLE_DETECTED':
         if (data.title) {
-          setVideoData(prev => prev ? { ...prev, autoDetectedTitle: data.title } : null);
+          setState.setVideoData(prev => prev ? { ...prev, autoDetectedTitle: data.title } : null);
           if (!title) {
-            setTitle(data.title);
+            setState.setTitle(data.title);
           }
-          showToast(`Title detected: ${data.title}`);
         }
         break;
         
       case 'STATE_CHANGE':
-        if (data.state === 1) {
-          setIsPlaying(true);
-        } else if (data.state === 2) {
-          setIsPlaying(false);
-        }
+        setState.setIsPlaying(data.state === 1);
         break;
         
       case 'PAGE_ERROR':
-        // Removed console.log statement
-        setError('Page error occurred in video player.');
+        setState.setError('Page error occurred in video player.');
         break;
     }
   } catch (error) {
-    // Removed console.log statement
   }
 };
 
@@ -575,25 +541,41 @@ export default function VideoPreview({ youtubeUrl, onValidation, onTitleDetected
   const [isPlaying, setIsPlaying] = useState(false);
   const [title, setTitle] = useState('');
 
-  const maxRetries = 3;
-  const loadingTimeoutDuration = 8000;
+  const videoOptimizer = VideoOptimizer.getInstance();
+  const batteryOptimizer = BatteryOptimizer.getInstance();
+  
+  const [loadingTimeoutDuration, setLoadingTimeoutDuration] = useState(() => {
+    return videoOptimizer.getLoadingTimeout('medium');
+  });
+  const [maxRetries, setMaxRetries] = useState(3);
 
-  const showToast = (message: string) => {
-    // Removed console.log statement
-  };
+  // Removed showToast - simplified without toast notifications
 
   useEffect(() => {
     if (youtubeUrl) {
+      // Apply battery optimizations
+      const optimizedTimeout = videoOptimizer.getLoadingTimeout('medium');
+      setLoadingTimeoutDuration(optimizedTimeout);
+      
+      // Check if video is cached
+      const cachedVideo = videoOptimizer.getCachedVideo(youtubeUrl);
+      if (cachedVideo) {
+        setVideoData(cachedVideo);
+        setEmbedabilityTested(true);
+        return;
+      }
+      
       fetchVideoData(
         youtubeUrl,
-        setTitle,
-        setVideoData,
-        setError,
-        setShowIframe,
-        setEmbedabilityTested,
-        setRetryCount,
-        setLoadingTimeout,
-        showToast,
+        {
+          setTitle,
+          setVideoData,
+          setError,
+          setShowIframe,
+          setEmbedabilityTested,
+          setRetryCount,
+          setLoadingTimeout
+        },
         title
       );
     }
@@ -601,9 +583,11 @@ export default function VideoPreview({ youtubeUrl, onValidation, onTitleDetected
 
   useEffect(() => {
     if (videoData) {
+      // Cache the video data after successful validation
+      videoOptimizer.cacheVideo(youtubeUrl, videoData);
       onValidation(videoData.embeddable, videoData.autoDetectedTitle, videoData.id);
     }
-  }, [videoData, onValidation]);
+  }, [videoData, onValidation, youtubeUrl, videoOptimizer]);
 
   useEffect(() => {
     if (title) {
@@ -614,16 +598,17 @@ export default function VideoPreview({ youtubeUrl, onValidation, onTitleDetected
   const handleWebViewMessageWrapper = (event: any) => {
     handleWebViewMessage(
       event,
-      setIframeLoaded,
-      setLoadingTimeout,
-      setError,
-      setVideoData,
-      setEmbedabilityTested,
-      setRetryCount,
-      setShowIframe,
-      setTitle,
-      setIsPlaying,
-      showToast,
+      {
+        setIframeLoaded,
+        setLoadingTimeout,
+        setError,
+        setVideoData,
+        setEmbedabilityTested,
+        setRetryCount,
+        setShowIframe,
+        setTitle,
+        setIsPlaying
+      },
       maxRetries,
       title
     );

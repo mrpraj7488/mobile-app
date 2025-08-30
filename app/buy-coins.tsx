@@ -13,12 +13,15 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAlert } from '@/contexts/AlertContext';
+import { useNotification } from '@/contexts/NotificationContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Coins, Crown, Star, CheckCircle, Zap, Users, Shield, Clock, Sparkles } from 'lucide-react-native';
+import { Coins, Crown, Star, CheckCircle, Zap, Users, Shield, Clock, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { getSupabase } from '../lib/supabase';
 import { useNetwork } from '../services/NetworkHandler';
+import ScreenHeader from '@/components/ScreenHeader';
+import PurchaseService from '@/services/PurchaseService';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -54,11 +57,11 @@ interface CoinPackage {
   limitedTime: boolean;
 }
 
-
 export default function BuyCoinsScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors, isDark } = useTheme();
   const { showError, showSuccess, showConfirm } = useAlert();
+  const { showInfo } = useNotification();
   const router = useRouter();
   const { showNetworkAlert } = useNetwork();
   const [loading, setLoading] = useState(false);
@@ -204,6 +207,7 @@ export default function BuyCoinsScreen() {
       
       const result = await InAppPurchases.initConnection();
       console.log('IAP connection result:', result);
+      
       setIapAvailable(true);
 
       if (Platform.OS === 'android') {
@@ -213,12 +217,21 @@ export default function BuyCoinsScreen() {
       // Get available products
       const productIds = coinPackages.map(pkg => pkg.productId);
       const availableProducts = await InAppPurchases.getProducts({ skus: productIds });
-      setProducts(availableProducts);
       console.log('Available products:', availableProducts);
+      setProducts(availableProducts);
+      
+      // Show success message for IAP initialization
+      if (availableProducts.length > 0) {
+        console.log('✅ In-app purchases initialized successfully');
+      } else {
+        console.warn('⚠️ No products found - purchases may not work');
+        showError('Products Unavailable', '⚠️ Coin packages are currently unavailable. Please try again in a few minutes or restart the app.');
+      }
+      
     } catch (error) {
-      console.log('IAP initialization failed:', error);
+      console.error('IAP initialization error:', error);
       setIapAvailable(false);
-      showError('Purchase Error', 'In-app purchases are not available. Please try again later.');
+      showError('Purchase Setup Failed', '🔧 Unable to set up in-app purchases. Please ensure:\n\n• You have a stable internet connection\n• Google Play Store is updated\n• Your device supports purchases\n\n💡 Try restarting the app or contact support.');
     }
   };
 
@@ -234,40 +247,39 @@ export default function BuyCoinsScreen() {
           amount: packageItem.coins + packageItem.bonus,
           transaction_type: 'coin_purchase',
           description: `Purchased ${packageItem.coins.toLocaleString()} + ${packageItem.bonus.toLocaleString()} bonus coins`,
-          metadata: {
-            package_id: packageItem.id,
-            original_coins: packageItem.coins,
-            bonus_coins: packageItem.bonus,
-            price_paid: packageItem.price,
-            platform: Platform.OS,
-            reference_id: transactionId
-          }
         });
 
       if (error) {
-        console.error('Error recording transaction:', error);
+        console.error('Failed to record transaction:', error);
+        // Don't throw here - coins were added successfully
       }
 
-      // Update user's coin balance
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          coins: (profile?.coins || 0) + packageItem.coins + packageItem.bonus 
-        })
-        .eq('id', user.id);
-
-      if (updateError) {
-        console.error('Error updating coin balance:', updateError);
-      }
     } catch (error) {
-      console.error('Error in recordPurchaseTransaction:', error);
+      console.error('Transaction recording error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch')) {
+        showError(
+          '🌐 Connection Issue',
+          'Unable to process your coins due to network issues. Your payment was successful - coins will be added automatically when connection is restored.'
+        );
+      } else if (errorMessage.includes('User profile not found')) {
+        showError(
+          '👤 Account Issue',
+          'Unable to locate your account. Please restart the app and try again, or contact support if the issue persists.'
+        );
+      } else {
+        showError(
+          '⚠️ Transaction Issue',
+          'Your payment was processed but there was an issue adding coins. Please contact support with your transaction details for immediate assistance.'
+        );
+      }
+      throw error; // Re-throw to handle in purchase flow
     }
   };
 
   const handlePurchase = async (packageItem: CoinPackage) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Animate button
     buttonAnimationRefs.current[packageItem.id].value = withSequence(
@@ -281,53 +293,94 @@ export default function BuyCoinsScreen() {
 
     try {
       if (!iapAvailable) {
-        showError('Purchase Error', 'In-app purchases are not available. Please ensure you have a valid payment method and try again.');
+        showError('Purchase Unavailable', '🚫 In-app purchases are not available. Please ensure you have a valid Google Play account and try again.');
         setLoading(false);
         setSelectedPackage(null);
         return;
       }
 
-      // Native in-app purchase
-      const InAppPurchases = await import('react-native-iap');
+      const success = await PurchaseService.purchaseCoins(packageItem.productId);
       
-      const purchase = await InAppPurchases.requestPurchase({
-        sku: packageItem.productId,
-        andDangerouslyFinishTransactionAutomaticallyIOS: false,
-      });
-
-      console.log('Purchase result:', purchase);
-
-      if (purchase) {
-        // Record the transaction
-        const transactionId = Array.isArray(purchase) ? purchase[0]?.transactionId : purchase.transactionId;
-        await recordPurchaseTransaction(packageItem, transactionId || `iap_${Date.now()}`);
-
-        // Finish the transaction
-        const purchaseToFinish = Array.isArray(purchase) ? purchase[0] : purchase;
-        await InAppPurchases.finishTransaction({ purchase: purchaseToFinish, isConsumable: true });
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-        showSuccess(
-          '🎉 Purchase Successful!',
-          `🪙 ${(packageItem.coins + packageItem.bonus).toLocaleString()} coins added to your account!\n\n🎯 You're now ready to promote your videos and reach viral status!\n\n💎 Thank you for choosing VidGro Premium!`
-        );
-        setTimeout(() => {
-          router.push('/(tabs)/promote');
-        }, 3000);
+      if (success) {
+        console.log('✅ Coin purchase successful');
         
-        await refreshProfile();
+        try {
+          // Record transaction and update coins
+          await recordPurchaseTransaction(packageItem, `iap_${Date.now()}`);
+          
+          // Refresh profile to show new coin balance
+          await refreshProfile();
+          
+          console.log('✅ Transaction finished successfully');
+
+          // Add haptic feedback for success
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+          showSuccess(
+            '🎉 Purchase Successful!',
+            `🪙 ${(packageItem.coins + packageItem.bonus).toLocaleString()} coins added to your account!\n\n🎯 You're now ready to promote your videos and reach viral status!\n\n💎 Thank you for choosing VidGro Premium!`
+          );
+          
+          // Navigate to promote tab after a delay
+          setTimeout(() => {
+            router.push('/(tabs)/promote');
+          }, 3000);
+          
+        } catch (transactionError) {
+          // Payment succeeded but transaction recording failed
+          showError(
+            '⚠️ Coins Processing',
+            'Your payment was successful! Coins are being processed and will appear in your account shortly. If they don\'t appear within 5 minutes, please contact support.'
+          );
+        }
+      } else {
+        console.warn('⚠️ Purchase failed');
+        showError(
+          '💳 Purchase Failed', 
+          'Your purchase could not be completed. No charges were made to your account.\n\n💡 Please try:\n• Checking your internet connection\n• Ensuring sufficient payment method balance\n• Restarting the app\n\nContact support if the issue persists.'
+        );
       }
     } catch (error: any) {
       console.error('Purchase error:', error);
       
-      // Check for network errors and show appropriate alert
+      // Provide detailed user-friendly error messages
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in handlePurchase outer catch - Showing network alert');
+      
+      if (errorMessage.includes('User cancelled') || errorMessage.includes('cancelled') || errorMessage.includes('E_USER_CANCELLED')) {
+        // User cancelled - no error needed, just log
+        console.log('User cancelled coin purchase');
+      } else if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
         showNetworkAlert();
+      } else if (errorMessage.includes('Product not available') || errorMessage.includes('not found') || errorMessage.includes('ITEM_UNAVAILABLE')) {
+        showError(
+          '🚫 Product Unavailable', 
+          'This coin package is temporarily unavailable. Please try again later or contact support if the issue persists.'
+        );
+      } else if (errorMessage.includes('BILLING_UNAVAILABLE') || errorMessage.includes('billing')) {
+        showError(
+          '💳 Billing Issue', 
+          'Google Play billing is not available. Please check your Google Play account and payment methods, then try again.'
+        );
+      } else if (errorMessage.includes('ITEM_ALREADY_OWNED')) {
+        showError(
+          '⚠️ Already Purchased', 
+          'You already own this item. Please check your coin balance or contact support if coins were not added.'
+        );
+      } else if (errorMessage.includes('DEVELOPER_ERROR')) {
+        showError(
+          '🔧 Configuration Error', 
+          'There\'s a configuration issue with this purchase. Please contact support for assistance.'
+        );
+      } else if (errorMessage.includes('SERVICE_UNAVAILABLE') || errorMessage.includes('timeout')) {
+        showError(
+          '⏰ Service Unavailable', 
+          'Google Play services are temporarily unavailable. Please check your internet connection and try again in a few minutes.'
+        );
       } else {
-        showError('Error', 'Something went wrong. Please try again.');
+        showError(
+          '❌ Purchase Failed', 
+          'Something went wrong with your purchase. Please check your internet connection and try again. If the problem persists, contact our support team.'
+        );
       }
     } finally {
       setLoading(false);
@@ -578,15 +631,10 @@ export default function BuyCoinsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Updated Header with coin balance */}
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Buy Coins</Text>
-          
-          {/* Coin balance in header */}
+      <ScreenHeader 
+        title="Buy Coins" 
+        icon={Coins}
+        rightComponent={
           <View style={styles.headerCoinDisplay}>
             <View style={[styles.headerCoinBadge, { 
               backgroundColor: isDark ? 'rgba(74, 144, 226, 0.2)' : 'rgba(255, 255, 255, 0.15)',
@@ -596,8 +644,8 @@ export default function BuyCoinsScreen() {
               <Text style={styles.headerCoinText}>{profile?.coins?.toLocaleString() || '0'}</Text>
             </View>
           </View>
-        </View>
-      </View>
+        }
+      />
 
       <ScrollView 
         style={styles.content} 
@@ -676,43 +724,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 40,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-    color: 'white',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
   headerCoinDisplay: {
     flexShrink: 0,
   },
   headerCoinBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 22,
     borderWidth: 1,
-    minWidth: 70,
+    minWidth: 90,
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   headerCoinIcon: {
     fontSize: 14,
@@ -720,9 +748,12 @@ const styles = StyleSheet.create({
   },
   headerCoinText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   content: {
     flex: 1,

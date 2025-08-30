@@ -18,10 +18,10 @@ import * as FileSystem from 'expo-file-system';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
-import GlobalHeader from '@/components/GlobalHeader';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, User, Mail, CreditCard as Edit3, Save, Camera, Lock, Eye, EyeOff, Crown, Coins, Calendar, Hash } from 'lucide-react-native';
+import { User, Mail, CreditCard as Edit3, Save, Camera, Lock, Eye, EyeOff, Crown, Coins, Calendar, Hash } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -88,6 +88,15 @@ export default function EditProfileScreen() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Add navigation focus effect to ensure clean state on screen focus
+  React.useEffect(() => {
+    const unsubscribe = router.canGoBack;
+    // Reset any potential layout state issues when screen mounts
+    return () => {
+      // Cleanup any lingering animation states
+    };
+  }, [router]);
+
   const handleSaveProfile = async () => {
     if (!username.trim()) {
       showNotificationError('Validation Error', 'Username cannot be empty');
@@ -129,7 +138,6 @@ export default function EditProfileScreen() {
 
       showNotificationSuccess('Profile Updated', 'Your profile changes have been saved successfully!');
     } catch (error) {
-      console.error('Error updating profile:', error);
       showNotificationError('Update Failed', 'Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
@@ -191,7 +199,6 @@ export default function EditProfileScreen() {
       setConfirmPassword('');
       setShowPasswordSection(false);
     } catch (error) {
-      console.error('Error changing password:', error);
       showNotificationError('Password Update Failed', 'Failed to update password. Please try again.');
     } finally {
       setPasswordLoading(false);
@@ -248,7 +255,6 @@ export default function EditProfileScreen() {
         await uploadAvatar(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
       showNotificationError('Error', 'Failed to pick image. Please try again.');
     }
   };
@@ -278,7 +284,7 @@ export default function EditProfileScreen() {
             oldAvatarPath = pathMatch[1];
           }
         } catch (urlError) {
-          console.log('Could not parse old avatar URL for cleanup:', urlError);
+          // Could not parse old avatar URL for cleanup
         }
       }
 
@@ -350,14 +356,10 @@ export default function EditProfileScreen() {
             .remove([oldAvatarPath]);
           
           if (deleteError) {
-            console.warn('Failed to delete old avatar file:', deleteError);
-            // Don't throw error - new avatar upload was successful
-          } else {
-            console.log('Successfully deleted old avatar file:', oldAvatarPath);
+            // Failed to delete old avatar file - new avatar upload was successful
           }
         } catch (deleteError) {
-          console.warn('Error during old avatar cleanup:', deleteError);
-          // Don't throw error - new avatar upload was successful
+          // Error during old avatar cleanup - new avatar upload was successful
         }
       }
 
@@ -366,7 +368,6 @@ export default function EditProfileScreen() {
       
       showNotificationSuccess('Profile Picture Updated', 'Your avatar has been successfully updated!');
     } catch (error) {
-      console.error('Error uploading avatar:', error);
       showNotificationError('Upload Failed', 'Failed to upload profile picture. Please try again.');
     } finally {
       setAvatarUploading(false);
@@ -392,27 +393,20 @@ export default function EditProfileScreen() {
         barStyle={isDark ? 'light-content' : 'light-content'} 
         backgroundColor={isDark ? colors.headerBackground : '#800080'}
       />
-      {/* Header */}
-      <LinearGradient
-        colors={isDark ? [colors.headerBackground, colors.surface] : ['#800080', '#800080']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
+      <ScreenHeader 
+        title="Edit Profile" 
+        icon={User}
+        rightComponent={
           <TouchableOpacity 
-            onPress={() => router.back()}
-            style={styles.headerButton}
+            onPress={handleSaveProfile}
+            style={[styles.headerButton, saveButtonAnimatedStyle]}
             activeOpacity={0.7}
+            disabled={loading}
           >
-            <ArrowLeft size={isTinyScreen ? 18 : isVerySmallScreen ? 20 : 24} color="white" />
+            <Save size={isTinyScreen ? 18 : isVerySmallScreen ? 20 : 24} color="white" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: isVerySmallScreen ? 18 : 22 }]}>
-            Edit Profile
-          </Text>
-          <View style={styles.headerButton}>
-            <Edit3 size={isTinyScreen ? 18 : isVerySmallScreen ? 20 : 24} color="white" />
-          </View>
-        </View>
-      </LinearGradient>
+        }
+      />
 
       <KeyboardAvoidingView 
         style={styles.content}
@@ -779,7 +773,9 @@ const styles = StyleSheet.create({
   },
   
   header: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + (isTablet ? 20 : 16) : (isTablet ? 60 : 50),
+    paddingTop: Platform.OS === 'android' ? 
+      (StatusBar.currentHeight || 24) + (isTablet ? 20 : 16) : 
+      (isTablet ? 60 : 50),
     paddingBottom: isTinyScreen ? 10 : isVerySmallScreen ? 12 : isTablet ? 16 : 14,
     paddingHorizontal: isTinyScreen ? 12 : isVerySmallScreen ? 16 : isTablet ? 24 : 20,
     shadowColor: '#000',

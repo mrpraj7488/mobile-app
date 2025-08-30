@@ -17,51 +17,35 @@ class Logger {
   }
 
   log(...args: any[]): void {
-    if (this.enabled) {
-      console.log(...args);
-    }
+    // Logging disabled in production
   }
 
   warn(...args: any[]): void {
-    if (this.enabled) {
-      console.warn(...args);
-    }
+    // Logging disabled in production
   }
 
   error(...args: any[]): void {
-    if (this.enabled) {
-      console.error(...args);
-    }
+    // Logging disabled in production
   }
 
   info(...args: any[]): void {
-    if (this.enabled) {
-      console.info(...args);
-    }
+    // Logging disabled in production
   }
 
   debug(...args: any[]): void {
-    if (this.enabled) {
-      console.debug(...args);
-    }
+    // Logging disabled in production
   }
 
   table(data: any): void {
-    if (this.enabled && console.table) {
-      console.table(data);
-    }
+    // Logging disabled in production
   }
 
   time(label: string): void {
-    if (this.enabled && console.time) {
-      console.time(label);
-    }
+    // Logging disabled in production
   }
 
   timeEnd(label: string): void {
-    if (this.enabled && console.timeEnd) {
-      console.timeEnd(label);
-    }
+    // Logging disabled in production
   }
 
   setEnabled(enabled: boolean): void {

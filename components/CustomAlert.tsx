@@ -5,8 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -65,8 +63,6 @@ export default function CustomAlert({
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
   const [isAnimating, setIsAnimating] = React.useState(false);
-
-  console.log('🎨 CustomAlert render:', { visible, type, title, message });
 
   React.useEffect(() => {
     if (visible && !isAnimating) {
@@ -173,11 +169,8 @@ export default function CustomAlert({
 
   // Don't render if not visible and not animating
   if (!visible && !isAnimating) {
-    console.log('🎨 CustomAlert: Not rendering - visible:', visible, 'isAnimating:', isAnimating);
     return null;
   }
-
-  console.log('🎨 CustomAlert: Rendering alert - visible:', visible, 'isAnimating:', isAnimating);
 
   return (
     <AnimatedView style={[styles.overlay, overlayStyle]}>

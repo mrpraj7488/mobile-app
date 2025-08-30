@@ -15,7 +15,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { useVideoStore } from '../store/videoStore';
 import { getSupabase, deleteVideo } from '@/lib/supabase';
-import { ArrowLeft, Eye, Clock, Trash2, Play, Timer, ChevronDown, Edit3, Copy, Check } from 'lucide-react-native';
+import { Eye, Clock, Trash2, Play, Timer, ChevronDown, Edit3, Copy, Check } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import { useNetwork } from '../services/NetworkHandler';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -54,7 +55,7 @@ export default function EditVideoScreen() {
   const [holdTimer, setHoldTimer] = useState(0);
   const [showRepromoteOptions, setShowRepromoteOptions] = useState(false);
   const [repromoting, setRepromoting] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Simple copy state without reanimated to avoid hook order issues
   const [videoIdCopied, setVideoIdCopied] = useState(false);
@@ -112,7 +113,7 @@ export default function EditVideoScreen() {
         setVideoIdCopied(false);
       }, 2000);
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      
       showError('Copy Failed', 'Could not copy to clipboard');
     }
   }, [showError]);
@@ -172,7 +173,7 @@ export default function EditVideoScreen() {
           if (intervalRef.current) clearInterval(intervalRef.current);
         }
       } catch (error) {
-        console.error('Error refreshing video data:', error);
+        
       }
     }, 3000);
   }, []);
@@ -355,7 +356,7 @@ export default function EditVideoScreen() {
           // Check for network errors and show appropriate alert
           const errorMessage = error instanceof Error ? error.message : String(error);
           if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-            console.log('🚨 NETWORK ERROR in handleDeleteVideo - Showing network alert');
+            
             showNetworkAlert();
           } else {
             showError('Error', 'Failed to delete video. Please try again.');
@@ -407,7 +408,7 @@ export default function EditVideoScreen() {
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-        console.log('🚨 NETWORK ERROR in handleRepromoteVideo - Showing network alert');
+        
         showNetworkAlert();
       } else {
         showError('Error', 'Failed to repromote video. Please try again.');
@@ -437,15 +438,11 @@ export default function EditVideoScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={handleNavigateBack}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: 'white' }]}>Edit Video</Text>
-          <Edit3 size={24} color="white" />
-        </View>
-      </View>
+      <ScreenHeader 
+        title="Edit Video" 
+        icon={Edit3}
+        onBackPress={handleNavigateBack}
+      />
 
       {loading || !videoData ? (
         <View style={styles.loadingContainer}>

@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Share2, Copy, Gift, Users, Coins, Star, TrendingUp, Crown, Check } from 'lucide-react-native';
+import { Share2, Copy, Gift, Users, Coins, Star, TrendingUp, Crown, Check } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -57,7 +58,7 @@ function ReferFriendScreen() {
           .single();
 
         if (profileError) {
-          console.error('Error fetching referral stats:', profileError);
+          
           return;
         }
 
@@ -66,7 +67,7 @@ function ReferFriendScreen() {
           coinsEarned: profileData?.referral_coins_earned || 0
         });
       } catch (error) {
-        console.error('Error fetching referral stats:', error);
+        
       }
     };
 
@@ -121,7 +122,7 @@ function ReferFriendScreen() {
         title: 'Join VidGro - Watch & Earn',
       });
     } catch (error) {
-      console.error('Error sharing:', error);
+      
     }
   };
 
@@ -131,21 +132,21 @@ function ReferFriendScreen() {
       title: 'You Earn 500 Coins',
       description: 'Get 500 coins for each friend who joins and watches their first video',
       color: '#FFD700',
-      gradient: ['#FFD700', '#FFA500']
+      gradient: ['#FFD700', '#FFA500'] as const
     },
     {
       icon: Gift,
       title: 'Friend Gets 200 Coins',
       description: 'Your friend receives 200 bonus coins instantly when they sign up',
       color: '#2ECC71',
-      gradient: ['#2ECC71', '#27AE60']
+      gradient: ['#2ECC71', '#27AE60'] as const
     },
     {
       icon: TrendingUp,
       title: 'Unlimited Referrals',
       description: 'No limits! Refer as many friends as you want and keep earning',
       color: '#3498DB',
-      gradient: ['#3498DB', '#2980B9']
+      gradient: ['#3498DB', '#2980B9'] as const
     }
   ];
 
@@ -167,19 +168,10 @@ function ReferFriendScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Enhanced Header */}
-      <LinearGradient
-        colors={isDark ? ['#1E293B', '#334155'] : ['#800080', '#800080']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Refer Friends</Text>
-          <Share2 size={24} color="white" />
-        </View>
-      </LinearGradient>
+      <ScreenHeader 
+        title="Refer Friends" 
+        icon={Share2}
+      />
 
       <ScrollView 
         style={styles.content} 

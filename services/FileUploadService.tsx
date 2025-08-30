@@ -97,7 +97,7 @@ export class FileUploadService {
         type: file.mimeType,
       };
     } catch (error) {
-      console.error('Error uploading file:', error);
+      
       throw new Error('Failed to upload file');
     }
   }
@@ -106,12 +106,12 @@ export class FileUploadService {
    * Upload multiple files
    */
   async uploadMultipleFiles(
-    files: Array<{
+    files: {
       uri: string;
       name: string;
       size: number;
       mimeType: string;
-    }>,
+    }[],
     ticketId: string,
     userId: string
   ): Promise<FileUploadResult[]> {
@@ -137,7 +137,7 @@ export class FileUploadService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting file:', error);
+      
       return false;
     }
   }
@@ -157,7 +157,7 @@ export class FileUploadService {
 
       return data.signedUrl;
     } catch (error) {
-      console.error('Error getting download URL:', error);
+      
       return null;
     }
   }
@@ -195,7 +195,7 @@ export class FileUploadService {
         }
       }
     } catch (error) {
-      console.error('Error ensuring bucket exists:', error);
+      
     }
   }
 

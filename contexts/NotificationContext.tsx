@@ -82,9 +82,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   }, [showNotification]);
 
   const showError = useCallback((title: string, message?: string, duration = 5000): string => {
-    console.log('🔔 NotificationContext: showError called with:', title, message);
+    
     const id = showNotification('error', title, message, { duration });
-    console.log('🔔 NotificationContext: notification created with ID:', id);
+    
     return id;
   }, [showNotification]);
 

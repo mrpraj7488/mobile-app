@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
-import { ChevronDown, ChevronUp, ArrowLeft, HelpCircle } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Responsive helpers
@@ -32,20 +33,20 @@ const faqData: FAQItem[] = [
   {
     id: '1',
     category: 'Getting Started',
-    question: 'How do I start earning coins?',
-    answer: 'Simply watch videos in the View tab! Each video you watch completely will reward you with coins. The number of coins earned is displayed before you start watching.'
+    question: 'What is VidGro?',
+    answer: 'VidGro is a video promotion platform where you earn coins by watching YouTube videos and use those coins to promote your own videos. It creates a community of engaged viewers and content creators helping each other grow.'
   },
   {
     id: '2',
     category: 'Getting Started',
-    question: 'What is VidGro?',
-    answer: 'VidGro is a platform where you can earn coins by watching YouTube videos and creators can promote their content to engaged viewers. It\'s a win-win for both viewers and content creators.'
+    question: 'How do I start earning coins?',
+    answer: 'Open the View tab and start watching videos! You earn 1 coin for each video you watch for at least 30 seconds. Free users can earn up to 50 coins daily, while VIP members have unlimited earning potential.'
   },
   {
     id: '3',
     category: 'Getting Started',
-    question: 'How do I create an account?',
-    answer: 'Tap the "Sign Up" button on the login screen, enter your email and create a secure password. You\'ll receive a confirmation email to verify your account.'
+    question: 'Is VidGro free to use?',
+    answer: 'Yes! VidGro is completely free to use. You can earn coins by watching videos without spending any money. Optional VIP subscriptions and coin packages are available for users who want to accelerate their growth.'
   },
 
   // Earning Coins
@@ -53,201 +54,201 @@ const faqData: FAQItem[] = [
     id: '4',
     category: 'Earning Coins',
     question: 'How many coins do I earn per video?',
-    answer: 'Coin rewards vary by video, typically ranging from 1-10 coins. The exact amount is shown before you start watching each video.'
+    answer: 'You earn 1 coin for each video you watch for the minimum required time of 30 seconds. The countdown timer shows your progress.'
   },
   {
     id: '5',
     category: 'Earning Coins',
-    question: 'Do I need to watch the entire video?',
-    answer: 'Yes, you need to watch the video for the specified duration (shown as a countdown timer) to earn coins. The timer pauses if you leave the app or switch tabs.'
+    question: 'What is the daily earning limit?',
+    answer: 'Free users can earn up to 50 coins per day by watching videos. VIP members enjoy unlimited daily earnings. The limit resets at midnight in your timezone.'
   },
   {
     id: '6',
     category: 'Earning Coins',
-    question: 'Why didn\'t I receive coins after watching a video?',
-    answer: 'Make sure you watched the video for the full required duration. If the video had technical issues or you switched apps during viewing, coins may not be awarded. Check your Recent Activity for transaction history.'
+    question: 'How do referral bonuses work?',
+    answer: 'Earn 10 coins instantly when someone signs up using your referral code! Share your unique code from the Refer Friend screen. There\'s no limit to how many friends you can refer.'
   },
   {
     id: '7',
     category: 'Earning Coins',
-    question: 'Can I watch the same video multiple times?',
-    answer: 'No, you can only earn coins once per video. After earning coins from a video, it won\'t appear in your queue again.'
+    question: 'Can I earn coins offline?',
+    answer: 'No, you need an active internet connection to watch videos and earn coins. The app requires connectivity to load videos and verify viewing completion.'
   },
 
-  // Video Watching
+  // Promoting Videos
   {
     id: '8',
-    category: 'Video Watching',
-    question: 'Why won\'t the video play?',
-    answer: 'Check your internet connection and try refreshing. Some videos may be region-restricted or temporarily unavailable. You can skip problematic videos using the skip button.'
+    category: 'Promoting Videos',
+    question: 'How do I promote my YouTube video?',
+    answer: 'Go to the Promote tab, enter your YouTube video URL, select how many views you want (1 coin = 1 view), and submit. Your video will be shown to other users who will watch it to earn coins.'
   },
   {
     id: '9',
-    category: 'Video Watching',
-    question: 'Can I control video playback?',
-    answer: 'Yes! Tap the video to play/pause. You can also open the video directly on YouTube using the "Open on YouTube" button for full controls.'
+    category: 'Promoting Videos',
+    question: 'Are the views real?',
+    answer: 'Yes! All views come from real users actively watching your video for at least 30 seconds. These are genuine engaged viewers, not bots or fake accounts.'
   },
   {
     id: '10',
-    category: 'Video Watching',
-    question: 'What is Auto Skip mode?',
-    answer: 'Auto Skip automatically moves to the next video after you\'ve earned coins. You can toggle this feature on/off in the video player controls.'
+    category: 'Promoting Videos',
+    question: 'How quickly will I get views?',
+    answer: 'View delivery speed depends on current user activity. Most promotions receive views within 24-48 hours. Popular times see faster delivery. VIP promotions get priority placement.'
   },
   {
     id: '11',
-    category: 'Video Watching',
-    question: 'Why does the timer pause?',
-    answer: 'The timer pauses when you switch apps, minimize the app, or if the video stops playing. This ensures you\'re actively watching to earn coins.'
+    category: 'Promoting Videos',
+    question: 'Can I promote any YouTube video?',
+    answer: 'You can promote most public YouTube videos. Videos must comply with our content guidelines - no adult content, violence, misleading information, or copyrighted material without permission.'
   },
 
-  // Account & Profile
+  // VIP Membership
   {
     id: '12',
-    category: 'Account & Profile',
-    question: 'How do I check my coin balance?',
-    answer: 'Your current coin balance is displayed in the top-right corner of most screens. You can also view detailed transaction history in the Analytics tab.'
+    category: 'VIP Membership',
+    question: 'What are the VIP benefits?',
+    answer: 'VIP members enjoy: unlimited daily coin earnings (no 50 coin limit), priority video promotion, exclusive VIP badge, ad-free experience option, and early access to new features.'
   },
   {
     id: '13',
-    category: 'Account & Profile',
-    question: 'How do I change my password?',
-    answer: 'Go to Settings > Account > Change Password. You\'ll need to enter your current password and create a new one.'
+    category: 'VIP Membership',
+    question: 'How much does VIP cost?',
+    answer: 'VIP subscriptions are available as monthly or yearly plans. Check the VIP section in the app for current pricing in your region. Save up to 20% with annual billing!'
   },
   {
     id: '14',
-    category: 'Account & Profile',
-    question: 'Can I delete my account?',
-    answer: 'Yes, you can delete your account in Settings > Account > Delete Account. This action is permanent and cannot be undone.'
+    category: 'VIP Membership',
+    question: 'Can I cancel VIP anytime?',
+    answer: 'Yes! You can cancel your VIP subscription anytime from Settings. You\'ll keep VIP benefits until the end of your current billing period.'
   },
   {
     id: '15',
-    category: 'Account & Profile',
-    question: 'How do I update my email address?',
-    answer: 'Currently, email changes require contacting support. Use the "Contact Support" option in the menu to request an email change.'
+    category: 'VIP Membership',
+    question: 'Is there a free trial?',
+    answer: 'New users may be eligible for a 3-day free VIP trial. Check the VIP section to see if you qualify. Cancel anytime during the trial to avoid charges.'
   },
 
-  // Technical Issues
+  // Purchasing Coins
   {
     id: '16',
-    category: 'Technical Issues',
-    question: 'The app is running slowly or crashing',
-    answer: 'Try closing and reopening the app. If issues persist, restart your device or check for app updates in your device\'s app store.'
+    category: 'Purchasing Coins',
+    question: 'How do I buy coins?',
+    answer: 'Tap the coin balance or go to Buy Coins in the menu. Choose a package (100 to 10,000 coins), select your payment method, and complete the secure checkout.'
   },
   {
     id: '17',
-    category: 'Technical Issues',
-    question: 'Videos are not loading',
-    answer: 'Check your internet connection. Try switching between WiFi and mobile data. If problems continue, the video servers may be temporarily down.'
+    category: 'Purchasing Coins',
+    question: 'What payment methods are accepted?',
+    answer: 'We accept major credit/debit cards, Google Pay, Apple Pay, and other regional payment methods through our secure payment processor.'
   },
   {
     id: '18',
-    category: 'Technical Issues',
-    question: 'I\'m not receiving notifications',
-    answer: 'Check your device notification settings for VidGro. Ensure notifications are enabled in both the app settings and your device settings.'
+    category: 'Purchasing Coins',
+    question: 'Are coin purchases refundable?',
+    answer: 'Coin purchases are generally non-refundable once processed. If you experience technical issues with your purchase, contact support within 48 hours for assistance.'
   },
   {
     id: '19',
-    category: 'Technical Issues',
-    question: 'The app won\'t sync my progress',
-    answer: 'Make sure you\'re connected to the internet. Try logging out and back in. If issues persist, contact support.'
+    category: 'Purchasing Coins',
+    question: 'Is it safe to make purchases?',
+    answer: 'Yes! All payments are processed through secure, encrypted channels. We never store your payment information directly. Look for the padlock icon during checkout.'
   },
 
-  // Content & Videos
+  // Account & Security
   {
     id: '20',
-    category: 'Content & Videos',
-    question: 'What types of videos are available?',
-    answer: 'VidGro features a variety of YouTube content including educational videos, entertainment, tutorials, music, and more. Content is curated to be engaging and appropriate.'
+    category: 'Account & Security',
+    question: 'How do I reset my password?',
+    answer: 'On the login screen, tap "Forgot Password" and enter your email. You\'ll receive a reset link within minutes. Check your spam folder if you don\'t see it.'
   },
   {
     id: '21',
-    category: 'Content & Videos',
-    question: 'Can I request specific types of videos?',
-    answer: 'While you can\'t request specific videos, the algorithm learns from your viewing patterns to show more relevant content over time.'
+    category: 'Account & Security',
+    question: 'Can I use VidGro on multiple devices?',
+    answer: 'Yes! You can log into your account on multiple devices. Your coins and progress sync automatically. For security, we may log out inactive devices.'
   },
   {
     id: '22',
-    category: 'Content & Videos',
-    question: 'Why do I see the same types of videos?',
-    answer: 'The system personalizes content based on your viewing history. Try watching different types of videos to diversify your recommendations.'
+    category: 'Account & Security',
+    question: 'Is my account secure?',
+    answer: 'We use enterprise-grade security including encryption, secure authentication, and anti-tampering protection. Enable two-factor authentication in Settings for extra security.'
   },
   {
     id: '23',
-    category: 'Content & Videos',
-    question: 'How often are new videos added?',
-    answer: 'New videos are added regularly throughout the day. The exact frequency depends on creator submissions and content approval processes.'
+    category: 'Account & Security',
+    question: 'What happens if I delete my account?',
+    answer: 'Account deletion is permanent. You\'ll lose all coins, promotion history, and referral bonuses. Consider taking a break instead by simply not using the app.'
   },
 
-  // Rewards & Coins
+  // Analytics & Tracking
   {
     id: '24',
-    category: 'Rewards & Coins',
-    question: 'What can I do with my coins?',
-    answer: 'Currently, coins serve as a reward system and leaderboard ranking. Future updates may include coin redemption options and special features.'
+    category: 'Analytics & Tracking',
+    question: 'How do I track my promotions?',
+    answer: 'The Analytics tab shows detailed statistics for all your promotions including views delivered, completion rate, and performance over time.'
   },
   {
     id: '25',
-    category: 'Rewards & Coins',
-    question: 'Do coins expire?',
-    answer: 'No, your earned coins never expire. They remain in your account permanently.'
+    category: 'Analytics & Tracking',
+    question: 'What metrics are available?',
+    answer: 'Track total views, daily earnings, promotion history, referral success, coin balance history, and viewing patterns. Export data for deeper analysis.'
   },
   {
     id: '26',
-    category: 'Rewards & Coins',
-    question: 'Can I transfer coins to other users?',
-    answer: 'Currently, coin transfers between users are not supported. Coins are tied to your individual account.'
+    category: 'Analytics & Tracking',
+    question: 'How accurate are the view counts?',
+    answer: 'View counts are 100% accurate and updated in real-time. Each view represents a real user watching your video for at least 30 seconds.'
   },
 
-  // Privacy & Safety
+  // Technical Support
   {
     id: '27',
-    category: 'Privacy & Safety',
-    question: 'Is my viewing data private?',
-    answer: 'Yes, your viewing data is kept private and secure. We only track viewing completion for coin rewards and don\'t share personal viewing habits.'
+    category: 'Technical Support',
+    question: 'The app won\'t open or crashes immediately',
+    answer: 'Try uninstalling and reinstalling the app. Make sure you\'re running the latest version. If problems persist, your device may not meet minimum requirements.'
   },
   {
     id: '28',
-    category: 'Privacy & Safety',
-    question: 'How is my personal information protected?',
-    answer: 'We use industry-standard encryption and security measures to protect your data. We never sell your personal information to third parties.'
+    category: 'Technical Support',
+    question: 'Videos won\'t load or play',
+    answer: 'Check your internet connection and try switching between WiFi and mobile data. Clear the app cache in your device settings. Some videos may be region-restricted.'
   },
   {
     id: '29',
-    category: 'Privacy & Safety',
-    question: 'Can I control what data is collected?',
-    answer: 'Yes, you can review and control data collection in Settings > Privacy. You can also request data deletion by contacting support.'
+    category: 'Technical Support',
+    question: 'My coins disappeared',
+    answer: 'Check the Analytics tab for recent transactions. Coins may have been used for promotions. If you believe there\'s an error, contact support with your account details.'
   },
 
   // Troubleshooting
   {
     id: '30',
     category: 'Troubleshooting',
-    question: 'I forgot my password',
-    answer: 'On the login screen, tap "Forgot Password" and enter your email. You\'ll receive a password reset link within a few minutes.'
+    question: 'Why am I seeing ads?',
+    answer: 'Ads help keep VidGro free for everyone. You can reduce ad frequency in Settings or upgrade to VIP for an ad-free experience. Configure your ad preferences for better relevance.'
   },
   {
     id: '31',
     category: 'Troubleshooting',
-    question: 'My account is locked',
-    answer: 'Account locks usually occur after multiple failed login attempts. Wait 15 minutes and try again, or contact support for immediate assistance.'
+    question: 'The timer isn\'t counting down',
+    answer: 'The timer pauses if you switch apps, lock your screen, or if the video stops playing. Stay in the app with the video playing to continue earning.'
   },
   {
     id: '32',
     category: 'Troubleshooting',
-    question: 'I can\'t log in with my credentials',
-    answer: 'Double-check your email and password. Ensure caps lock is off and try copying/pasting your password. If issues persist, use the password reset option.'
+    question: 'I\'m not receiving referral bonuses',
+    answer: 'Referral bonuses are credited when your friend signs up AND completes email verification. Make sure they use your exact referral code during registration.'
   }
 ];
 
 const categories = [
   'Getting Started',
   'Earning Coins',
-  'Video Watching',
-  'Account & Profile',
-  'Technical Issues',
-  'Content & Videos',
-  'Rewards & Coins',
-  'Privacy & Safety',
+  'Promoting Videos',
+  'VIP Membership',
+  'Purchasing Coins',
+  'Account & Security',
+  'Analytics & Tracking',
+  'Technical Support',
   'Troubleshooting'
 ];
 
@@ -281,19 +282,10 @@ export default function FAQScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <LinearGradient
-        colors={isDark ? [colors.headerBackground, colors.surface] : ['#800080', '#800080']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>FAQ</Text>
-          <HelpCircle size={24} color="white" />
-        </View>
-      </LinearGradient>
+      <ScreenHeader 
+        title="FAQ" 
+        icon={HelpCircle}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 

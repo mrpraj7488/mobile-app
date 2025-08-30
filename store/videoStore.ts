@@ -155,7 +155,6 @@ export const useVideoStore = create<VideoState>((set, get) => ({
     const { videoQueue, currentVideoIndex } = get();
     const currentVideo = videoQueue[currentVideoIndex] || null;
     
-    console.log('🎬 VideoStore: getCurrentVideo called. Queue length:', videoQueue.length, 'Current index:', currentVideoIndex, 'Current video:', currentVideo?.title || 'none');
     
     return currentVideo;
   },
@@ -163,22 +162,18 @@ export const useVideoStore = create<VideoState>((set, get) => ({
   moveToNextVideo: () => {
     const { videoQueue, currentVideoIndex } = get();
 
-    console.log('🔄 VideoStore: Moving to next video. Current index:', currentVideoIndex, 'Queue length:', videoQueue.length);
 
     if (videoQueue.length === 0) {
-      console.log('🔄 VideoStore: No videos in queue');
       return;
     }
 
     if (currentVideoIndex < videoQueue.length - 1) {
       const nextIndex = currentVideoIndex + 1;
       const nextVideo = videoQueue[nextIndex];
-      console.log('🔄 VideoStore: Moving to next video at index:', nextIndex, 'Title:', nextVideo?.title);
       set({ currentVideoIndex: nextIndex, currentVideo: nextVideo });
     } else {
       // Loop back to beginning for continuous playback
       const firstVideo = videoQueue[0];
-      console.log('🔄 VideoStore: Looping back to first video');
       set({ currentVideoIndex: 0, currentVideo: firstVideo });
     }
   },
@@ -224,10 +219,6 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                       !['active', 'repromoted'].includes(currentVideo.status) ||
                       (currentVideo.status === 'on_hold' && new Date(currentVideo.hold_until || 0) > new Date());
     
-    // console.log('🎬 VideoStore: Current video should be skipped:', {
-    //   videoId: currentVideo.video_id,
-    //   title: currentVideo.title,
-    //   completed: currentVideo.completed,
     //   views: currentVideo.views_count,
     //   target: currentVideo.target_views,
     //   status: currentVideo.status
@@ -241,12 +232,9 @@ export const useVideoStore = create<VideoState>((set, get) => ({
     const { shouldSkipCurrentVideo, moveToNextVideo, refreshQueue } = get();
     
     if (shouldSkipCurrentVideo()) {
-      // console.log('🎬 VideoStore: Current video should be skipped, moving to next');
       moveToNextVideo();
       
-      // If the next video should also be skipped, refresh the queue
       if (shouldSkipCurrentVideo()) {
-        // console.log('🎬 VideoStore: Next video also should be skipped, refreshing queue');
         await refreshQueue(userId);
       }
     }

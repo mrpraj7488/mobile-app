@@ -2,13 +2,12 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// Add obfuscation for production builds
-if (process.env.NODE_ENV === 'production' && process.env.ENABLE_OBFUSCATION === 'true') {
+// Production optimizations
+if (process.env.NODE_ENV === 'production') {
   config.transformer = {
     ...config.transformer,
     minifierConfig: {
       ...config.transformer.minifierConfig,
-      // Enhanced obfuscation settings
       mangle: {
         toplevel: true,
         eval: true,
@@ -20,7 +19,7 @@ if (process.env.NODE_ENV === 'production' && process.env.ENABLE_OBFUSCATION === 
       compress: {
         drop_console: true,
         drop_debugger: true,
-        pure_funcs: ['console.log', 'console.warn', 'console.info'],
+        pure_funcs: ['console.log', 'console.warn', 'console.info', 'console.error'],
         dead_code: true,
         conditionals: true,
         evaluate: true,
@@ -32,6 +31,7 @@ if (process.env.NODE_ENV === 'production' && process.env.ENABLE_OBFUSCATION === 
         join_vars: true,
         cascade: true,
         side_effects: false,
+        passes: 3,
       },
       output: {
         comments: false,
@@ -39,6 +39,17 @@ if (process.env.NODE_ENV === 'production' && process.env.ENABLE_OBFUSCATION === 
       },
     },
   };
+
+  // Bundle size optimization
+  config.resolver = {
+    ...config.resolver,
+    alias: {
+      'react-native-vector-icons': '@expo/vector-icons',
+    },
+  };
+
+  // Asset optimization
+  config.transformer.assetPlugins = ['expo-asset/tools/hashAssetFiles'];
 }
 
 module.exports = config;

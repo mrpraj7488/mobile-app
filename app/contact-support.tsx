@@ -20,10 +20,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, MessageCircle, Send, Phone, Mail, CircleHelp as HelpCircle, CircleAlert as AlertCircle, CreditCard, User, Video, Coins, MoveHorizontal as MoreHorizontal, ChevronDown, ChevronUp, Clock, CircleCheck as CheckCircle, Circle as XCircle, TriangleAlert as AlertTriangle, Star, Copy, Paperclip, X, FileText, Image, RefreshCw, MessageSquare, Check, History, ChevronRight, ArrowRight } from 'lucide-react-native';
+import { MessageCircle, Send, Phone, Mail, CircleHelp as HelpCircle, CircleAlert as AlertCircle, CreditCard, User, Video, Coins, MoveHorizontal as MoreHorizontal, ChevronDown, ChevronUp, Clock, CircleCheck as CheckCircle, Circle as XCircle, TriangleAlert as AlertTriangle, Star, Copy, Paperclip, X, FileText, Image, RefreshCw, MessageSquare, Check, History, ChevronRight, ArrowRight } from 'lucide-react-native';
 import { getSupabase } from '@/lib/supabase';
 import { useCustomAlert } from '@/hooks/useCustomAlert';
 import CustomAlert from '@/components/CustomAlert';
+import ScreenHeader from '@/components/ScreenHeader';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import FileUploadService from '@/services/FileUploadService';
@@ -58,14 +59,14 @@ function ContactSupportScreen() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [recentTickets, setRecentTickets] = useState([]);
+  const [recentTickets, setRecentTickets] = useState<any[]>([]);
   const [showRecentTickets, setShowRecentTickets] = useState(false);
   const [loadingTickets, setLoadingTickets] = useState(false);
-  const [copiedTicketId, setCopiedTicketId] = useState(null);
+  const [copiedTicketId, setCopiedTicketId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [attachments, setAttachments] = useState([]);
+  const [attachments, setAttachments] = useState<any[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [realtimeSubscription, setRealtimeSubscription] = useState(null);
+  const [realtimeSubscription, setRealtimeSubscription] = useState<any>(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -168,8 +169,8 @@ function ContactSupportScreen() {
           table: 'support_tickets',
           filter: `reported_by=eq.${user.id}`
         },
-        (payload) => {
-          console.log('Ticket update:', payload);
+        (payload: any) => {
+          
           loadRecentTickets();
         }
       )
@@ -213,14 +214,13 @@ function ContactSupportScreen() {
 
   const loadRecentTickets = async () => {
     if (!user?.id) {
-      console.log('No user ID available');
+      
       return;
     }
     
     setLoadingTickets(true);
     try {
-      console.log('Fetching recent tickets for user:', user.id);
-      
+
       // First, try to fetch a single ticket to check if the table exists
       const { data, error, status } = await supabase
         .from('support_tickets')
@@ -230,7 +230,7 @@ function ContactSupportScreen() {
       
       // If we get a 404, the table doesn't exist
       if (status === 406 || (error && error.code === '42P01')) {
-        console.log('Support tickets table does not exist or is not accessible');
+        
         setRecentTickets([]);
         return;
       }
@@ -243,24 +243,21 @@ function ContactSupportScreen() {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      console.log('Tickets fetch status:', status);
-      
       if (fetchError) {
-        console.error('Supabase error:', fetchError);
+        
         // Don't throw here, just show an empty state
         setRecentTickets([]);
         return;
       }
-      
-      console.log('Fetched tickets:', tickets);
+
       setRecentTickets(tickets || []);
       
       // If no tickets, show a helpful message
       if (!tickets || tickets.length === 0) {
-        console.log('No tickets found for user');
+        
       }
     } catch (error: any) {
-      console.error('Error loading tickets:', error);
+      
       setRecentTickets([]);
       // Only show error if it's not a 404 (table doesn't exist)
       if (error.code !== '42P01') { // 42P01 is the code for "relation does not exist"
@@ -306,7 +303,7 @@ function ContactSupportScreen() {
         const file = result.assets[0];
         
         // Check file size (5MB limit)
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size && file.size > 5 * 1024 * 1024) {
           return; // Silently reject large files
         }
 
@@ -319,16 +316,16 @@ function ContactSupportScreen() {
         }]);
       }
     } catch (error) {
-      console.error('Document picker error:', error);
+      
       // Silently handle error
     }
   };
 
-  const removeAttachment = (index) => {
+  const removeAttachment = (index: number) => {
     setAttachments(attachments.filter((_, i) => i !== index));
   };
 
-  const formatFileSize = (bytes) => {
+  const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
@@ -356,7 +353,7 @@ function ContactSupportScreen() {
     
     try {
       // Upload attachments if any
-      let attachmentData = [];
+      let attachmentData: any[] = [];
       if (attachments.length > 0) {
         try {
           // Ensure storage bucket exists
@@ -382,7 +379,7 @@ function ContactSupportScreen() {
             uploaded_at: new Date().toISOString()
           }));
         } catch (uploadError) {
-          console.error('File upload error:', uploadError);
+          
           setLoading(false);
           return;
         }
@@ -407,7 +404,7 @@ function ContactSupportScreen() {
       // Move uploaded files to correct ticket folder if needed
       if (attachments.length > 0 && data?.id) {
         // Files are already uploaded with correct structure
-        console.log('Ticket created with attachments:', data.id);
+        
       }
 
       // Reset form and reload tickets seamlessly
@@ -422,7 +419,7 @@ function ContactSupportScreen() {
       router.push(`/ticket-detail?id=${data.id}`);
       
     } catch (error) {
-      console.error('Submit error:', error);
+      
       // Only show error for critical failures
       showError('Error', 'Failed to submit ticket. Please try again.');
     } finally {
@@ -431,7 +428,7 @@ function ContactSupportScreen() {
     }
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: string) => {
     switch(status) {
       case 'active': return <AlertCircle size={12} color="#3498DB" />;
       case 'pending': return <Clock size={12} color="#F39C12" />;
@@ -442,7 +439,7 @@ function ContactSupportScreen() {
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     const statusColors = {
       'active': { bg: isDark ? 'rgba(52, 152, 219, 0.2)' : 'rgba(52, 152, 219, 0.1)', text: '#3498DB' },
       'pending': { bg: isDark ? 'rgba(243, 156, 18, 0.2)' : 'rgba(243, 156, 18, 0.1)', text: '#F39C12' },
@@ -450,19 +447,19 @@ function ContactSupportScreen() {
       'completed': { bg: isDark ? 'rgba(39, 174, 96, 0.2)' : 'rgba(39, 174, 96, 0.1)', text: '#27AE60' },
       'closed': { bg: isDark ? 'rgba(149, 165, 166, 0.2)' : 'rgba(149, 165, 166, 0.1)', text: '#95A5A6' }
     };
-    return statusColors[status] || statusColors.active;
+    return statusColors[status as keyof typeof statusColors] || statusColors.active;
   };
 
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = (priority: string) => {
     const priorityColors = {
       'low': '#10B981',
       'medium': '#F59E0B',
       'high': '#EF4444'
     };
-    return priorityColors[priority] || priorityColors.low;
+    return priorityColors[priority as keyof typeof priorityColors] || priorityColors.low;
   };
 
-  const formatRelativeTime = (dateString) => {
+  const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
@@ -473,7 +470,7 @@ function ContactSupportScreen() {
     return date.toLocaleDateString();
   };
 
-  const copyTicketId = (ticketId) => {
+  const copyTicketId = (ticketId: string | number) => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -484,13 +481,13 @@ function ContactSupportScreen() {
     );
 
     Clipboard.setString(ticketId.toString());
-    setCopiedTicketId(ticketId);
+    setCopiedTicketId(ticketId.toString());
     setTimeout(() => {
       setCopiedTicketId(null);
     }, 2000);
   };
 
-  const navigateToTicketDetail = (ticket) => {
+  const navigateToTicketDetail = (ticket: any) => {
     router.push(`/ticket-detail?id=${ticket.id}`);
   };
 
@@ -560,24 +557,10 @@ function ContactSupportScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Enhanced Header */}
-      <LinearGradient
-        colors={isDark ? [colors.headerBackground, colors.surface] : ['#800080', '#800080']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            Contact Support
-          </Text>
-          <MessageCircle size={24} color="white" />
-        </View>
-      </LinearGradient>
+      <ScreenHeader 
+        title="Contact Support" 
+        icon={MessageCircle}
+      />
 
       <ScrollView 
         style={styles.content}

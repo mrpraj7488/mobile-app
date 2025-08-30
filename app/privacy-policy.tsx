@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Shield, Eye, Lock, Database } from 'lucide-react-native';
+import { Shield, Eye, Lock, Database } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 
 export default function PrivacyPolicyScreen() {
   const { colors, isDark } = useTheme();
@@ -13,26 +14,40 @@ export default function PrivacyPolicyScreen() {
     {
       title: 'Information We Collect',
       icon: Database,
-      content: `We collect information you provide directly to us, such as when you create an account, promote videos, or contact us for support.
+      content: `VidGro collects information to provide and improve our video promotion platform.
 
-This includes:
-• Account information (email, username)
-• Video promotion data (YouTube URLs, titles)
-• Transaction history and coin balance
-• Device information and usage analytics
-• Communication records with support`
+Information you provide:
+• Account details (email, username, profile picture)
+• Video URLs and promotion settings
+• Coin transactions and balance
+• Referral codes and VIP status
+• Support tickets and bug reports
+• Ad configuration preferences
+
+Automatically collected:
+• Device information (model, OS version, app version)
+• Usage analytics and watch history
+• Network information and IP address
+• Performance metrics and crash reports
+• Battery optimization preferences
+• Cache and storage usage patterns`
     },
     {
       title: 'How We Use Your Information',
       icon: Eye,
-      content: `We use the information we collect to:
+      content: `Your information helps us deliver and enhance the VidGro experience:
 
-• Provide and maintain our services
-• Process video promotions and coin transactions
-• Send you technical notices and support messages
-• Analyze usage patterns to improve our platform
-• Prevent fraud and ensure platform security
-• Comply with legal obligations`
+• Process video promotions and manage view distribution
+• Handle coin transactions and VIP subscriptions
+• Implement referral rewards and bonus systems
+• Optimize battery usage and performance
+• Detect and prevent fraud, cheating, and abuse
+• Provide customer support and resolve issues
+• Send important updates and notifications
+• Analyze trends to improve features
+• Ensure security with anti-tampering measures
+• Comply with legal and regulatory requirements
+• Personalize your experience and recommendations`
     },
     {
       title: 'Information Sharing',
@@ -49,37 +64,37 @@ We may share your information only in these limited circumstances:
     {
       title: 'Data Security',
       icon: Lock,
-      content: `We implement appropriate security measures to protect your information:
+      content: `VidGro employs enterprise-grade security to protect your data:
 
-• Encryption of data in transit and at rest
-• Regular security audits and monitoring
-• Access controls and authentication systems
-• Secure data centers and infrastructure
-• Employee training on data protection
+• End-to-end encryption for sensitive data
+• Certificate pinning to prevent MITM attacks
+• Anti-tampering and root/jailbreak detection
+• Secure storage with obfuscation
+• Real-time security monitoring
+• Rate limiting and DDoS protection
+• Regular security audits and updates
+• Biometric authentication support
+• Automatic session management
+• Code obfuscation and anti-debugging
 
-However, no method of transmission over the internet is 100% secure.`
+While we use industry-best practices, no system is 100% secure. We continuously update our security measures.`
     }
   ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Privacy Policy</Text>
-          <Shield size={24} color="white" />
-        </View>
-      </View>
+      <ScreenHeader 
+        title="Privacy Policy" 
+        icon={Shield}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.introSection, { backgroundColor: colors.surface }]}>
           <Text style={[styles.introTitle, { color: colors.text }]}>Your Privacy Matters</Text>
           <Text style={[styles.introText, { color: colors.textSecondary }]}>
-            At VidGro, we are committed to protecting your privacy and ensuring the security of your personal information. This policy explains how we collect, use, and safeguard your data.
+            VidGro is committed to protecting your privacy and ensuring the security of your personal information. This policy explains how we collect, use, and safeguard your data in compliance with GDPR, CCPA, and other privacy regulations.
           </Text>
-          <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last updated: January 15, 2025</Text>
+          <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>Last updated: December 27, 2024</Text>
         </View>
 
         {sections.map((section, index) => (
@@ -121,35 +136,40 @@ However, no method of transmission over the internet is 100% secure.`
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
             <Eye size={24} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Cookies and Tracking</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Analytics and Tracking</Text>
           </View>
           <Text style={[styles.sectionContent, { color: colors.textSecondary }]}>
-            We use cookies and similar technologies to:
-            {'\n\n'}• Remember your preferences
-            {'\n'}• Analyze platform usage
-            {'\n'}• Improve user experience
-            {'\n'}• Prevent fraud and abuse
-            {'\n\n'}You can control cookie settings through your browser preferences.
+            We use analytics to improve VidGro:
+            {'\n\n'}• Track video watch completion rates
+            {'\n'}• Monitor coin earning patterns
+            {'\n'}• Analyze feature usage and engagement
+            {'\n'}• Detect unusual activity patterns
+            {'\n'}• Optimize battery and performance
+            {'\n'}• Measure ad effectiveness
+            {'\n\n'}All analytics data is anonymized and aggregated. You can opt-out in Settings.
           </Text>
         </View>
 
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
             <Lock size={24} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Children's Privacy</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Age Requirements</Text>
           </View>
           <Text style={[styles.sectionContent, { color: colors.textSecondary }]}>
-            Our service is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us.
+            VidGro is intended for users aged 13 and above. Users under 18 should have parental consent.
+            {'\n\n'}We do not knowingly collect data from children under 13. If we discover such data has been collected, we will delete it immediately.
+            {'\n\n'}Parents can contact us to review, delete, or restrict processing of their child's information.
           </Text>
         </View>
 
         <View style={[styles.contactSection, { backgroundColor: colors.primary + '20', borderLeftColor: colors.primary }]}>
           <Text style={[styles.contactTitle, { color: colors.primary }]}>Contact Us</Text>
           <Text style={[styles.contactText, { color: colors.primary }]}>
-            If you have any questions about this Privacy Policy, please contact us:
-            {'\n\n'}Email: privacy@vidgro.com
-            {'\n'}Address: 123 Privacy Street, Data City, DC 12345
-            {'\n'}Phone: +1 (555) 123-4567
+            If you have questions about this Privacy Policy or your data:
+            {'\n\n'}Email: support@vidgro.app
+            {'\n'}In-App: Settings → Contact Support
+            {'\n'}Response Time: Within 24-48 hours
+            {'\n\n'}For data deletion requests, please use the Delete Account option in Settings.
           </Text>
         </View>
 

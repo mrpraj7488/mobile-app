@@ -29,10 +29,10 @@ export const useCopyToClipboard = (): UseCopyToClipboardReturn => {
       // Hide after 2 seconds
       setTimeout(() => {
         opacity.value = withTiming(0, { duration: 200 });
-        setTimeout(() => setCopied(false), 200);
+        setCopied(false);
       }, 2000);
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      // Silent error handling for clipboard
     }
   };
 

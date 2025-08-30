@@ -396,7 +396,10 @@ export default function EditVideoScreen() {
       if (error) throw new Error(error.message);
 
       if (result && result.success === false) {
-        showError('Cannot Repromote', result?.error || 'Failed to repromote video');
+        const errorMsg = result?.error && typeof result.error === 'object' 
+          ? (result.error.message || String(result.error))
+          : (result?.error || 'Failed to repromote video');
+        showError('Cannot Repromote', errorMsg);
         return;
       }
 

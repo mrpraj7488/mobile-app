@@ -90,7 +90,7 @@ class BugReportService {
       const { data: { user } } = await supabase.auth.getUser();
       
       // Generate unique bug ID
-      const bugId = `BUG_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const bugId = `BUG_${Date.now()}_${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
       
       // Insert directly into bug_reports table
       const { data, error } = await supabase
@@ -115,7 +115,7 @@ class BugReportService {
         .single();
 
       if (error) {
-        console.error('Error submitting bug report:', error);
+        
         throw new Error(error.message);
       }
 
@@ -141,7 +141,7 @@ class BugReportService {
 
       throw new Error('Failed to submit bug report');
     } catch (error) {
-      console.error('Error in submitBugReport:', error);
+      
       throw error;
     }
   }
@@ -155,7 +155,7 @@ class BugReportService {
         .single();
 
       if (error) {
-        console.error('Error fetching bug report status:', error);
+        
         return null;
       }
 
@@ -167,7 +167,7 @@ class BugReportService {
         updated_at: data.updated_at
       };
     } catch (error) {
-      console.error('Error in getBugReportStatus:', error);
+      
       return null;
     }
   }
@@ -181,11 +181,11 @@ class BugReportService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching user bug reports:', error);
+        
         return [];
       }
 
-      return data.map(report => ({
+      return data.map((report: any) => ({
         bug_id: report.bug_id,
         status: report.status,
         admin_notes: report.admin_notes,
@@ -193,7 +193,7 @@ class BugReportService {
         updated_at: report.updated_at
       }));
     } catch (error) {
-      console.error('Error in getUserBugReports:', error);
+      
       return [];
     }
   }
@@ -205,7 +205,7 @@ class BugReportService {
       storedReports[bugId] = report;
       await AsyncStorage.setItem('mobile_bug_reports', JSON.stringify(storedReports));
     } catch (error) {
-      console.error('Error storing bug report locally:', error);
+      
     }
   }
 
@@ -214,7 +214,7 @@ class BugReportService {
       const stored = await AsyncStorage.getItem('mobile_bug_reports');
       return stored ? JSON.parse(stored) : {};
     } catch (error) {
-      console.error('Error getting stored bug reports:', error);
+      
       return {};
     }
   }

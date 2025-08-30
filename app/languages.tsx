@@ -5,7 +5,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Globe, Check } from 'lucide-react-native';
+import { Globe, Check } from 'lucide-react-native';
+import ScreenHeader from '@/components/ScreenHeader';
 
 export default function LanguagesScreen() {
   const { user, profile } = useAuth();
@@ -49,15 +50,10 @@ export default function LanguagesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? colors.headerBackground : '#800080' }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Languages</Text>
-          <Globe size={24} color="white" />
-        </View>
-      </View>
+      <ScreenHeader 
+        title="Languages" 
+        icon={Globe}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>

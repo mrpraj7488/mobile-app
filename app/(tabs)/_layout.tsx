@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Play, TrendingUp, ChartBar as BarChart3, MoveHorizontal as MoreHorizontal } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Platform, View, Pressable } from 'react-native';
@@ -6,13 +6,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
   const { user, loading } = useAuth();
   const router = useRouter();
-  // Subtle shadow/scale on press for tab buttons
   const TabButtonContainer = (props: any) => {
     const { children, accessibilityRole, accessibilityState, accessibilityLabel, testID, onPress, onLongPress, disabled, style } = props;
 
@@ -21,7 +19,6 @@ export default function TabLayout() {
       transform: [{ scale: scale.value }],
     }));
 
-    // Static, platform-specific shadow (do not reference Platform inside worklet)
     const baseShadowStyle = Platform.OS === 'ios'
       ? {
           shadowColor: colors.shadowColor,
@@ -29,16 +26,7 @@ export default function TabLayout() {
           shadowOpacity: isDark ? 0.35 : 0.12,
           shadowRadius: 10,
         }
-      : {
-          elevation: 6,
-        } as const;
-
-    const onPressIn = () => {
-      scale.value = withTiming(1.04, { duration: 120 });
-    };
-    const onPressOut = () => {
-      scale.value = withTiming(1, { duration: 180 });
-    };
+      : { elevation: 6 } as const;
 
     return (
       <Pressable
@@ -49,8 +37,8 @@ export default function TabLayout() {
         onPress={onPress}
         onLongPress={onLongPress}
         disabled={disabled}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
+        onPressIn={() => scale.value = withTiming(1.04, { duration: 120 })}
+        onPressOut={() => scale.value = withTiming(1, { duration: 180 })}
         style={style}
       >
         <Animated.View style={[{ flex: 1, justifyContent: 'center', alignItems: 'center' }, baseShadowStyle, animatedStyle]}>
@@ -60,20 +48,14 @@ export default function TabLayout() {
     );
   };
 
-  // Authentication guard
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/(auth)/login');
     }
   }, [user, loading, router]);
 
-  // Don't render tabs if user is not authenticated
-  if (loading) {
-    return null; // Let the ConfigLoader handle the loading state
-  }
-
-  if (!user) {
-    return null; // Will redirect to login
+  if (loading || !user) {
+    return null;
   }
 
   return (
@@ -106,17 +88,13 @@ export default function TabLayout() {
             <TabButtonContainer {...props} />
           ),
           tabBarBackground: () => (
-            <View style={{ flex: 1, position: 'relative' }}>
-              
-              {/* Tab bar background */}
-              <LinearGradient
-                colors={isDark 
-                  ? [colors.tabBarBackground, 'rgba(10, 14, 26, 0.98)']
-                  : [colors.tabBarBackground, 'rgba(250, 250, 250, 0.98)']
-                }
-                style={{ flex: 1 }}
-              />
-            </View>
+            <LinearGradient
+              colors={isDark 
+                ? [colors.tabBarBackground, 'rgba(10, 14, 26, 0.98)']
+                : [colors.tabBarBackground, 'rgba(250, 250, 250, 0.98)']
+              }
+              style={{ flex: 1 }}
+            />
           ),
         }}
       >

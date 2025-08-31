@@ -56,7 +56,6 @@ export class PurchaseService {
       if (this.isInitialized) return true;
 
       const result = await initConnection();
-      console.log('IAP Connection result:', result);
       
       if (result) {
         this.isInitialized = true;
@@ -73,15 +72,11 @@ export class PurchaseService {
 
   private async loadProducts() {
     try {
-      console.log('Loading IAP products...');
-      
       // Load coin products
       this.products = await getProducts({ skus: coinProductIds });
-      console.log('Loaded coin products:', this.products.length);
       
       // Load VIP subscriptions
       this.subscriptions = await getSubscriptions({ skus: vipSubscriptionIds });
-      console.log('Loaded VIP subscriptions:', this.subscriptions.length);
       
     } catch (error) {
       console.error('Failed to load products:', error);
@@ -91,7 +86,6 @@ export class PurchaseService {
   private setupListeners() {
     // Purchase success listener
     this.purchaseUpdateSubscription = purchaseUpdatedListener((purchase: ProductPurchase | SubscriptionPurchase) => {
-      console.log('Purchase updated:', purchase);
       this.handlePurchaseUpdate(purchase);
     });
 
@@ -104,8 +98,6 @@ export class PurchaseService {
 
   private async handlePurchaseUpdate(purchase: ProductPurchase | SubscriptionPurchase) {
     try {
-      console.log('Processing purchase:', purchase.productId);
-      
       // Process the purchase
       await this.processPurchase(purchase);
       
@@ -130,7 +122,6 @@ export class PurchaseService {
         }
       }
       
-      console.log('Requesting coin purchase:', productId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
       await requestPurchase({ sku: productId });
@@ -152,7 +143,6 @@ export class PurchaseService {
         }
       }
       
-      console.log('Requesting VIP subscription:', subscriptionId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
       await requestSubscription({ sku: subscriptionId });
@@ -174,8 +164,6 @@ export class PurchaseService {
       if (coinProductIds.includes(productId)) {
         const coins = coinAmounts[productId as keyof typeof coinAmounts];
         
-        console.log(`Awarding ${coins} coins for ${productId}`);
-        
         // Update coins in database using the increment function
         const { error } = await supabase.rpc('increment_user_coins', {
           user_id_param: (await supabase.auth.getUser()).data.user?.id,
@@ -187,7 +175,6 @@ export class PurchaseService {
           throw error;
         }
         
-        console.log(`Successfully awarded ${coins} coins`);
       }
       
       // Activate VIP subscription
@@ -203,8 +190,6 @@ export class PurchaseService {
           throw new Error('Unknown VIP subscription type');
         }
         
-        console.log(`Activating VIP until ${vipExpiry.toISOString()}`);
-        
         // Update VIP status in database
         const { error } = await supabase
           .from('profiles')
@@ -219,7 +204,6 @@ export class PurchaseService {
           throw error;
         }
         
-        console.log('Successfully activated VIP subscription');
       }
       
     } catch (error) {
@@ -255,7 +239,6 @@ export class PurchaseService {
       
       await endConnection();
       this.isInitialized = false;
-      console.log('IAP cleanup completed');
     } catch (error) {
       console.error('IAP cleanup error:', error);
     }

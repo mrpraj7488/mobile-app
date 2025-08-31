@@ -261,13 +261,10 @@ export default function BecomeVIPScreen() {
       }
 
       // Use PurchaseService for VIP subscription
-      console.log('Requesting VIP subscription for:', plan.productId);
       
       const success = await PurchaseService.purchaseVIP(plan.productId);
       
       if (success) {
-        console.log('✅ VIP subscription successful');
-        
         // Refresh profile to show VIP status
         await refreshProfile();
         
@@ -291,8 +288,7 @@ export default function BecomeVIPScreen() {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if (errorMessage.includes('E_USER_CANCELLED') || errorMessage.includes('User cancelled') || errorMessage.includes('cancelled')) {
-        // User cancelled - no error needed, just log
-        console.log('User cancelled VIP subscription');
+        // User cancelled - no error needed
       } else if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
         showNetworkAlert();
       } else if (errorMessage.includes('ITEM_UNAVAILABLE') || errorMessage.includes('Product not available')) {

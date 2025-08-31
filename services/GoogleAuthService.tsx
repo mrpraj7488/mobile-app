@@ -63,27 +63,14 @@ class GoogleAuthService {
       // Check if device has Google Play Services
       await GoogleSignin.hasPlayServices();
 
-      // Force complete session reset to prevent "signing back in" message
-      try {
-        // First revoke all permissions
-        await GoogleSignin.revokeAccess();
-        // Then sign out completely
-        await GoogleSignin.signOut();
-        // Reconfigure to ensure fresh state
-        this.isConfigured = false;
-        await this.configure();
-      } catch {
-        // Ignore errors if user wasn't signed in
-      }
-
-      // Sign in with Google with completely fresh session
+      // Get user info from Google
       const userInfo = await GoogleSignin.signIn();
-      
+
       if (!userInfo.data?.idToken) {
         throw new Error('No ID token received from Google');
       }
 
-      // Sign in to Supabase with Google ID token
+      // Sign in to Supabase with Google ID token and pass referral code in metadata
       const supabase = getSupabase();
       if (!supabase) {
         throw new Error('Supabase not initialized');
@@ -92,39 +79,24 @@ class GoogleAuthService {
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: userInfo.data.idToken,
+        options: {
+          data: {
+            referral_code: referralCode || null
+          }
+        }
       });
 
       if (error) {
         throw error;
       }
 
-      // Create profile BEFORE auth state changes
-      if (data.user) {
-        await this.ensureUserProfile(data.user, referralCode);
-        
-        return {
-          success: true,
-          user: data.user
-        };
-      }
-
       return {
         success: true,
         user: data.user
       };
-
-    } catch (error: any) {
-      console.error('Google Auth Error:', error);
-      
-      let errorMessage = 'Authentication failed';
-      
-      if (statusCodes && error.code === statusCodes.SIGN_IN_CANCELLED) {
-        errorMessage = 'Sign in was cancelled';
-      } else if (statusCodes && error.code === statusCodes.IN_PROGRESS) {
-        errorMessage = 'Sign in is already in progress';
-      } else if (statusCodes && error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        errorMessage = 'Google Play Services not available';
-      } else if (error instanceof Error) {
+    } catch (error) {
+      let errorMessage = 'Failed to sign in with Google';
+      if (error instanceof Error) {
         errorMessage = error.message;
       }
 
@@ -137,7 +109,7 @@ class GoogleAuthService {
 
 
   /**
-   * Ensure user profile exists in profiles table
+   * Ensure user profile exists in profiles table - using same pattern as email signup
    */
   private async ensureUserProfile(user: any, referralCode?: string): Promise<void> {
     try {
@@ -157,61 +129,22 @@ class GoogleAuthService {
         return;
       }
 
-      // Create new profile with welcome bonus (100 base + 200 if referral)
-      const baseWelcomeBonus = 100;
-      const referralBonus = referralCode ? 200 : 0;
-      const totalCoins = baseWelcomeBonus + referralBonus;
-      
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email,
-          username: user.email?.split('@')[0] || 'user',
-          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
-          coins: totalCoins,
-          is_vip: false,
-          referral_code: this.generateReferralCode(),
-          referred_by: referralCode || null,
-          referral_coins_earned: referralBonus,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+      // Use the same RPC function as email signup for consistency
+      const { data: createResult, error: createError } = await supabase
+        .rpc('create_missing_profile', {
+          p_user_id: user.id,
+          p_email: user.email,
+          p_username: user.email?.split('@')[0] || 'user',
+          p_referral_code: referralCode
         });
 
-      if (insertError) {
-        throw insertError;
-      }
-
-      // Record welcome bonus transaction
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          transaction_id: `welcome_bonus_${Date.now()}_${user.id.substring(0, 8)}`,
-          user_id: user.id,
-          amount: totalCoins,
-          transaction_type: 'welcome_bonus',
-          description: referralCode ? 
-            'Welcome bonus for joining VidGro with referral code' : 
-            'Welcome bonus for joining VidGro',
-          metadata: {
-            bonus_type: 'new_user_welcome',
-            base_bonus: baseWelcomeBonus,
-            referral_bonus: referralBonus,
-            referral_code: referralCode || null
-          },
-          created_at: new Date().toISOString()
-        });
-
-      if (transactionError) {
-        console.error('Error recording welcome bonus transaction:', transactionError);
-      }
-
-      // Handle referral code if provided
-      if (referralCode) {
-        await this.handleReferralCode(user.id, referralCode);
+      if (createError) {
+        console.error('Failed to create profile via RPC:', createError);
+        throw createError;
       }
     } catch (error) {
       console.error('Error ensuring user profile:', error);
+      throw error;
     }
   }
 

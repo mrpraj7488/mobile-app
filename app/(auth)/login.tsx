@@ -103,19 +103,6 @@ export default function Login() {
     setGoogleLoading(true);
     
     try {
-      // Check if running in Expo Go (development)
-      const isExpoGo = __DEV__ && Platform.OS !== 'web';
-      
-      if (isExpoGo) {
-        showInfo(
-          'Development Mode',
-          'Google Sign-In requires a production build. Please use email sign-in for testing in Expo Go.'
-        );
-        setShowEmailForm(true);
-        setGoogleLoading(false);
-        return;
-      }
-      
       const googleAuthService = GoogleAuthService.getInstance();
       const result = await googleAuthService.signInWithGoogle(
         referralCode.trim() || undefined
@@ -129,7 +116,7 @@ export default function Login() {
         if (referralCode.trim()) {
           showSuccess(
             '🎉 Welcome to VidGro!',
-            'Successfully signed in with Google! You and your referrer have both earned 400 coins as a welcome bonus.'
+            'You and your referrer have both earned 400 coins as a welcome bonus.'
           );
         } else {
           showSuccess(

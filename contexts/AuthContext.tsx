@@ -1,7 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getUserProfile, getSupabase } from '../lib/supabase';
-import { User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getSupabase, getUserProfile } from '../lib/supabase';
 import { useConfig } from './ConfigContext';
+
+// Helper function to generate referral code
+const generateReferralCode = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 interface Profile {
   id: string;
@@ -20,11 +29,11 @@ interface Profile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, username: string, referralCode?: string | null) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error?: any }>;
+  signUp: (email: string, password: string, username: string, referralCode?: string | null) => Promise<{ error?: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -40,7 +49,7 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { config, loading: configLoading, isConfigValid } = useConfig();
@@ -81,7 +90,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           async (event: any, session: any) => {
             setUser(session?.user ?? null);
             if (session?.user) {
-              await loadProfile(session.user.id);
+              // For Google Auth users, ensure profile exists using same RPC as email signup
+              if (event === 'SIGNED_IN' && session.user.app_metadata?.provider === 'google') {
+                try {
+                  // Wait for profile creation like email signup
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  
+                  // Check if profile exists, if not create it manually
+                  const { data: profileData, error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .select('id')
+                    .eq('id', session.user.id)
+                    .single();
+                  
+                  if (profileError && profileError.code === 'PGRST116') {
+                    // Use the same RPC function as email signup
+                    await supabaseClient.rpc('create_missing_profile', {
+                      p_user_id: session.user.id,
+                      p_email: session.user.email,
+                      p_username: session.user.email?.split('@')[0] || 'user',
+                      p_referral_code: session.user.user_metadata?.referral_code || null
+                    });
+                    
+                    // Wait for profile creation and retry loading
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Manually fetch and set the profile
+                    let profileAttempts = 0;
+                    const maxAttempts = 5;
+                    
+                    while (profileAttempts < maxAttempts) {
+                      try {
+                        const { data: newProfile, error: profileFetchError } = await supabaseClient
+                          .from('profiles')
+                          .select('*')
+                          .eq('id', session.user.id)
+                          .single();
+                        
+                        if (!profileFetchError && newProfile) {
+                          setProfile(newProfile);
+                          break;
+                        }
+                        
+                        profileAttempts++;
+                        if (profileAttempts < maxAttempts) {
+                          await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                      } catch (fetchError) {
+                        profileAttempts++;
+                        if (profileAttempts < maxAttempts) {
+                          await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                      }
+                    }
+                  } else {
+                    await loadProfile(session.user.id);
+                  }
+                } catch (rpcError) {
+                  await loadProfile(session.user.id);
+                }
+              } else {
+                await loadProfile(session.user.id);
+              }
             } else {
               setProfile(null);
             }
@@ -113,7 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(profileData);
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      // Fallback profile creation handled by auth state change for Google users
+      setProfile(null);
     }
   };
 
@@ -180,8 +251,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (profileError && profileError.code === 'PGRST116') {
           // Profile doesn't exist, create it manually
-          console.log('Profile not found, creating manually...');
-          console.log('Referral code being passed:', referralCode);
           
           const { data: createResult, error: createError } = await supabaseClient
             .rpc('create_missing_profile', {
@@ -192,10 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
           
           if (createError) {
-            console.error('Failed to create profile manually:', createError);
             return { error: createError };
-          } else {
-            console.log('Profile created manually:', createResult);
           }
         }
         
@@ -216,7 +282,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             if (!profileFetchError && newProfile) {
               setProfile(newProfile);
-              console.log('Profile loaded successfully:', newProfile);
               break;
             }
             
@@ -225,7 +290,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await new Promise(resolve => setTimeout(resolve, 1000));
             }
           } catch (fetchError) {
-            console.error('Error fetching profile:', fetchError);
             profileAttempts++;
             if (profileAttempts < maxAttempts) {
               await new Promise(resolve => setTimeout(resolve, 1000));
@@ -234,12 +298,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (profileAttempts >= maxAttempts) {
-          console.error('Failed to load profile after multiple attempts');
           return { error: new Error('Failed to load profile') };
         }
         
       } catch (profileCreationError) {
-        console.error('Error ensuring profile creation:', profileCreationError);
         return { error: profileCreationError };
       }
     }

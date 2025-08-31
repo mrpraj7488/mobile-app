@@ -90,25 +90,9 @@ export const useVideoStore = create<VideoState>((set, get) => ({
           
           const shouldInclude = hasRequiredFields && isNotCompleted && hasValidStatus;
           
-          // Debug logging for videos that are filtered out
+          // Filter out videos that don't meet criteria
           if (!shouldInclude) {
-            console.log('🚫 VideoStore: Filtering out video:', {
-              title: video.title || 'No title',
-              status: video.status,
-              completed: video.completed,
-              views: video.views_count,
-              target: video.target_views,
-              reason: !hasRequiredFields ? `missing_required_fields: ${missingFields.join(', ')}` : 
-                         !isNotCompleted ? 'completed' : 
-                         'invalid_status',
-              videoData: JSON.stringify({
-                video_id: video.video_id,
-                youtube_url: video.youtube_url ? 'present' : 'missing',
-                title: video.title ? 'present' : 'missing',
-                duration_seconds: video.duration_seconds,
-                coin_reward: video.coin_reward
-              }, null, 2)
-            });
+            return false;
           }
           
           return shouldInclude;
@@ -128,9 +112,7 @@ export const useVideoStore = create<VideoState>((set, get) => ({
           canLoop: true
         });
         
-        console.log('🎬 VideoStore: Queue updated. Current index:', newIndex, 'Queue size:', safeVideos.length);
       } else {
-        console.log('🎬 VideoStore: No videos received from API');
         set({ 
           videoQueue: [], 
           currentVideoIndex: 0,
@@ -202,7 +184,6 @@ export const useVideoStore = create<VideoState>((set, get) => ({
   },
 
   refreshQueue: async (userId: string) => {
-    // console.log('🔄 VideoStore: Refreshing video queue');
     await get().fetchVideos(userId);
   },
 
@@ -219,10 +200,6 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                       !['active', 'repromoted'].includes(currentVideo.status) ||
                       (currentVideo.status === 'on_hold' && new Date(currentVideo.hold_until || 0) > new Date());
     
-    //   views: currentVideo.views_count,
-    //   target: currentVideo.target_views,
-    //   status: currentVideo.status
-    // });
     
     return shouldSkip;
   },

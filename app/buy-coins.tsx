@@ -206,7 +206,6 @@ export default function BuyCoinsScreen() {
       const InAppPurchases = await import('react-native-iap');
       
       const result = await InAppPurchases.initConnection();
-      console.log('IAP connection result:', result);
       
       setIapAvailable(true);
 
@@ -217,14 +216,10 @@ export default function BuyCoinsScreen() {
       // Get available products
       const productIds = coinPackages.map(pkg => pkg.productId);
       const availableProducts = await InAppPurchases.getProducts({ skus: productIds });
-      console.log('Available products:', availableProducts);
       setProducts(availableProducts);
       
-      // Show success message for IAP initialization
-      if (availableProducts.length > 0) {
-        console.log('✅ In-app purchases initialized successfully');
-      } else {
-        console.warn('⚠️ No products found - purchases may not work');
+      // Show error if no products found
+      if (availableProducts.length === 0) {
         showError('Products Unavailable', '⚠️ Coin packages are currently unavailable. Please try again in a few minutes or restart the app.');
       }
       
@@ -302,16 +297,12 @@ export default function BuyCoinsScreen() {
       const success = await PurchaseService.purchaseCoins(packageItem.productId);
       
       if (success) {
-        console.log('✅ Coin purchase successful');
-        
         try {
           // Record transaction and update coins
-          await recordPurchaseTransaction(packageItem, `iap_${Date.now()}`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           // Refresh profile to show new coin balance
           await refreshProfile();
-          
-          console.log('✅ Transaction finished successfully');
 
           // Add haptic feedback for success
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -347,8 +338,7 @@ export default function BuyCoinsScreen() {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if (errorMessage.includes('User cancelled') || errorMessage.includes('cancelled') || errorMessage.includes('E_USER_CANCELLED')) {
-        // User cancelled - no error needed, just log
-        console.log('User cancelled coin purchase');
+        // User cancelled - no error needed
       } else if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
         showNetworkAlert();
       } else if (errorMessage.includes('Product not available') || errorMessage.includes('not found') || errorMessage.includes('ITEM_UNAVAILABLE')) {

@@ -21,15 +21,17 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [connectionType, setConnectionType] = useState<string | null>(null);
   const [notificationId, setNotificationId] = useState<string | null>(null);
+  const [hasShownRestoreMessage, setHasShownRestoreMessage] = useState<boolean>(false);
+  const [lastConnectionState, setLastConnectionState] = useState<boolean>(true);
   
   const { showNetworkNotification, dismissNotification } = useNotification();
 
-  // Check network connectivity
+  // Check network connectivity with debouncing
   const checkConnection = useCallback(async (): Promise<boolean> => {
     try {
       // Simple network check using fetch with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
       const response = await fetch('https://www.google.com/generate_204', {
         method: 'HEAD',
@@ -40,18 +42,29 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
       clearTimeout(timeoutId);
       const isOnline = response.ok;
 
-      setIsConnected(isOnline);
-      setIsOnline(isOnline);
-      setConnectionType(isOnline ? 'online' : 'offline');
+      // Only update state if there's an actual change
+      if (isOnline !== lastConnectionState) {
+        setIsConnected(isOnline);
+        setIsOnline(isOnline);
+        setConnectionType(isOnline ? 'online' : 'offline');
+        setLastConnectionState(isOnline);
+      }
       
       return isOnline;
     } catch (error) {
-      setIsConnected(false);
-      setIsOnline(false);
-      setConnectionType('offline');
+      const isOffline = false;
+      
+      // Only update state if there's an actual change
+      if (isOffline !== lastConnectionState) {
+        setIsConnected(false);
+        setIsOnline(false);
+        setConnectionType('offline');
+        setLastConnectionState(false);
+      }
+      
       return false;
     }
-  }, []);
+  }, [lastConnectionState]);
 
   // Show network alert
   const showNetworkAlert = useCallback(() => {
@@ -64,6 +77,7 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
     );
     
     setNotificationId(id);
+    setHasShownRestoreMessage(false); // Reset restore message flag
   }, [notificationId, showNetworkNotification]);
 
   // Hide network alert
@@ -80,27 +94,45 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
     checkConnection();
     
     // Set up intelligent network monitoring with exponential backoff
-    let checkInterval = 10000; // Start with 10 seconds
+    let checkInterval = 15000; // Start with 15 seconds for smoother detection
     const maxInterval = 60000; // Max 60 seconds
     let consecutiveFailures = 0;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     const scheduleNextCheck = () => {
-      setTimeout(async () => {
-        const wasOnline = isConnected && isOnline;
+      timeoutId = setTimeout(async () => {
+        const wasOnline = lastConnectionState;
         const isNowOnline = await checkConnection();
         
-        if (wasOnline && !isNowOnline) {
-          consecutiveFailures++;
-          checkInterval = Math.min(checkInterval * 1.5, maxInterval);
-          
-          // Network lost - show notification if not already visible
-          if (!notificationId) {
-            setTimeout(() => showNetworkAlert(), 1000);
+        // Only react to actual state changes
+        if (wasOnline !== isNowOnline) {
+          if (wasOnline && !isNowOnline) {
+            // Network lost
+            consecutiveFailures++;
+            checkInterval = Math.min(checkInterval * 1.2, maxInterval);
+            
+            if (!notificationId) {
+              setTimeout(() => showNetworkAlert(), 1000);
+            }
+          } else if (!wasOnline && isNowOnline) {
+            // Connection restored
+            consecutiveFailures = 0;
+            checkInterval = 15000;
+            
+            if (notificationId && !hasShownRestoreMessage) {
+              hideNetworkAlert();
+              setHasShownRestoreMessage(true);
+              
+              // Show brief success notification only once
+              setTimeout(() => {
+                showNetworkNotification(
+                  'Connection Restored',
+                  'Internet connection is back online.',
+                  false // not persistent, will auto-dismiss
+                );
+              }, 300);
+            }
           }
-        } else if (isNowOnline) {
-          // Reset interval when connection is restored
-          consecutiveFailures = 0;
-          checkInterval = 10000;
         }
         
         // Schedule next check
@@ -111,9 +143,11 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
     scheduleNextCheck();
 
     return () => {
-      // No-op
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [isConnected, isOnline, notificationId, showNetworkAlert, hideNetworkAlert, checkConnection]);
+  }, [lastConnectionState, notificationId, hasShownRestoreMessage, showNetworkAlert, hideNetworkAlert, checkConnection]);
 
   const contextValue: NetworkContextType = {
     isConnected,

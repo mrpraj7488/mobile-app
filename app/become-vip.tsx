@@ -144,6 +144,12 @@ export default function BecomeVIPScreen() {
         }
       };
     }
+    
+    return () => {
+      if (iapAvailable) {
+        PurchaseService.cleanup();
+      }
+    };
   }, [profile]);
 
   const startAnimations = () => {

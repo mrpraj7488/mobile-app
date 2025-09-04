@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { WebView } from 'react-native-webview';
 import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Image } from 'react-native';
 import VideoOptimizer from '../utils/VideoOptimizer';
@@ -551,35 +551,49 @@ export default function VideoPreview({ youtubeUrl, onValidation, onTitleDetected
 
   // Removed showToast - simplified without toast notifications
 
+  const resetAllStates = useCallback(() => {
+    setTitle('');
+    setVideoData(null);
+    setError(null);
+    setShowIframe(false);
+    setIframeLoaded(false);
+    setEmbedabilityTested(false);
+    setRetryCount(0);
+    setLoadingTimeout(false);
+    setIsPlaying(false);
+  }, []);
+
   useEffect(() => {
     if (youtubeUrl) {
+      resetAllStates();
+      
       // Apply battery optimizations
       const optimizedTimeout = videoOptimizer.getLoadingTimeout('medium');
       setLoadingTimeoutDuration(optimizedTimeout);
       
-      // Check if video is cached
-      const cachedVideo = videoOptimizer.getCachedVideo(youtubeUrl);
-      if (cachedVideo) {
-        setVideoData(cachedVideo);
-        setEmbedabilityTested(true);
-        return;
-      }
-      
-      fetchVideoData(
-        youtubeUrl,
-        {
-          setTitle,
-          setVideoData,
-          setError,
-          setShowIframe,
-          setEmbedabilityTested,
-          setRetryCount,
-          setLoadingTimeout
-        },
-        title
-      );
+      // Debounce video data fetching for better performance
+      const timeoutId = setTimeout(() => {
+        fetchVideoData(
+          youtubeUrl,
+          {
+            setTitle,
+            setVideoData,
+            setError,
+            setShowIframe,
+            setEmbedabilityTested,
+            setRetryCount,
+            setLoadingTimeout
+          },
+          ''
+        );
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      resetAllStates();
+      return undefined;
     }
-  }, [youtubeUrl]);
+  }, [youtubeUrl, resetAllStates]);
 
   useEffect(() => {
     if (videoData) {

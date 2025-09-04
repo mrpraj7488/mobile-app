@@ -44,6 +44,7 @@ export function useSecurityMonitor() {
       
       return () => clearTimeout(timeoutId);
     }
+    return undefined;
   }, [config]);
 
   const performSecurityCheck = async () => {

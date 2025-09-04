@@ -94,6 +94,7 @@ export default function CustomAlert({
         runOnJS(setIsAnimating)(false);
       });
     }
+    return undefined;
   }, [visible]);
 
   const handleClose = () => {

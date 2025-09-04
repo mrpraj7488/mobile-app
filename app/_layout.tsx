@@ -1,17 +1,17 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, useColorScheme } from 'react-native';
+import { View, useColorScheme, Platform } from 'react-native';
 import { AuthProvider } from '../contexts/AuthContext';
-import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
-import { ConfigProvider, useConfig } from '../contexts/ConfigContext';
 import { AlertProvider } from '../contexts/AlertContext';
-import { NetworkProvider } from '../services/NetworkHandler';
 import { NotificationProvider, useNotification } from '../contexts/NotificationContext';
+import { ConfigProvider, useConfig } from '../contexts/ConfigContext';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { NetworkProvider } from '../services/NetworkHandler';
+import AppInitializer from '../components/AppInitializer';
 import { NotificationSystem } from '../components/NotificationSystem';
 import ConfigLoader from '../components/ConfigLoader';
 import SecurityGuard from '../components/SecurityGuard';
-import AppInitializer from '../components/AppInitializer';
 
 function RootStack() {
   const { colors, isDark } = useTheme();
@@ -26,12 +26,25 @@ function RootStack() {
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },
           animation: 'fade_from_bottom',
-          animationDuration: 300
+          animationDuration: 150,
+          statusBarStyle: isDark ? 'light' : 'dark',
+          statusBarBackgroundColor: colors.background
         }}
       >
-        <Stack.Screen name="index" options={{ animation: 'none' }} />
-        <Stack.Screen name="(auth)" options={{ animation: 'fade', animationDuration: 250 }} />
-        <Stack.Screen name="(tabs)" options={{ animation: 'fade', animationDuration: 250 }} />
+        <Stack.Screen name="index" options={{ 
+          animation: 'none',
+          contentStyle: { backgroundColor: colors.background }
+        }} />
+        <Stack.Screen name="(auth)" options={{ 
+          animation: 'fade', 
+          animationDuration: 120,
+          contentStyle: { backgroundColor: colors.background }
+        }} />
+        <Stack.Screen name="(tabs)" options={{ 
+          animation: 'fade', 
+          animationDuration: 120,
+          contentStyle: { backgroundColor: colors.background }
+        }} />
         <Stack.Screen name="edit-profile" />
         <Stack.Screen name="become-vip" />
         <Stack.Screen name="buy-coins" />
@@ -46,6 +59,7 @@ function RootStack() {
         <Stack.Screen name="edit-video" />
         <Stack.Screen name="ticket-detail" />
         <Stack.Screen name="faq" />
+        <Stack.Screen name="+not-found" />
       </Stack>
       <NotificationSystem 
         notifications={notifications} 

@@ -252,6 +252,7 @@ export default function EditVideoScreen() {
       
       return () => clearInterval(interval);
     }
+    return undefined;
   }, [holdTimer]);
 
   const getMinutesSinceCreation = useCallback(() => {
@@ -352,6 +353,11 @@ export default function EditVideoScreen() {
             'Success', 
             deleteResult.message || `Video deleted and 🪙${deleteResult.refund_amount} coins refunded!`
           );
+
+          // Navigate back to analytics with refresh flag
+          setTimeout(() => {
+            router.replace('/(tabs)/analytics?refresh=true');
+          }, 1000);
         } catch (error) {
           // Check for network errors and show appropriate alert
           const errorMessage = error instanceof Error ? error.message : String(error);

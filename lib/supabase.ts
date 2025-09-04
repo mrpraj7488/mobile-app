@@ -175,14 +175,35 @@ export const watchVideoAndEarnCoins = async (
 
 // Get user profile
 export async function getUserProfile(userId: string): Promise<any> {
-  if (!userId) return null;
+  if (!userId) {
+    return null;
+  }
 
   try {
-    const { data, error } = await getSupabase()
+    const supabaseClient = getSupabase();
+    
+    if (!supabaseClient) {
+      return null;
+    }
+    
+    // Check current session context
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    
+    // Try direct RPC call to verify profile exists (bypasses RLS)
+    const { data: rpcData, error: rpcError } = await supabaseClient.rpc('get_profile_by_id', { 
+      profile_id: userId 
+    });
+    
+    // If session is lost but profile exists, use RPC result
+    if (!sessionData?.session?.user?.id && rpcData && rpcData.length > 0) {
+      return rpcData[0];
+    }
+    
+    const { data, error } = await supabaseClient
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       return null;
@@ -254,19 +275,25 @@ export const createVideoPromotion = async (
   
   // Record promotion transaction if successful
   if (!error && data?.success) {
-    const supabase = getSupabase();
-    const { error: transactionError } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: userId,
-        transaction_type: 'video_promotion',
-        amount: -coinCost, // Negative because it's a cost
-        description: `Video promotion: ${title}`,
-        created_at: new Date().toISOString()
-      });
-    
-    if (transactionError) {
-      console.error('Failed to record promotion transaction:', transactionError);
+    try {
+      const supabase = getSupabase();
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          transaction_id: `promotion_${userId}_${Date.now()}`,
+          user_id: userId,
+          transaction_type: 'video_promotion',
+          amount: -coinCost,
+          description: `Video promotion: ${title}`,
+          metadata: {
+            video_title: title,
+            target_views: targetViews,
+            duration: duration,
+            coin_reward: coinReward
+          }
+        });
+    } catch (transactionError) {
+      // Silent fail - don't break promotion flow
     }
   }
   

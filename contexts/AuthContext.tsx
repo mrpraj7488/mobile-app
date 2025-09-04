@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, startTransition } from 'react';
 import { getSupabase, getUserProfile } from '../lib/supabase';
 import { useConfig } from './ConfigContext';
 
@@ -26,6 +26,7 @@ interface Profile {
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
+  last_activity_at: string;
 }
 
 interface AuthContextType {
@@ -36,6 +37,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, username: string, referralCode?: string | null) => Promise<{ error?: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  forceProfileRefresh: (userId?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,12 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const { config, loading: configLoading, isConfigValid } = useConfig();
 
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     
-    const initializeAuth = async () => {
+    const initializeAuth = async (): Promise<any> => {
       // Wait for ConfigContext to be ready and Supabase to be initialized
       if (configLoading || !isConfigValid || !config) {
         setLoading(true); // Keep loading while waiting for config
@@ -79,99 +82,198 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         // Get initial session
         const { data: { session } } = await supabaseClient.auth.getSession();
-        setUser(session?.user ?? null);
+        
         if (session?.user) {
-          await loadProfile(session.user.id);
+          try {
+            const profileData = await getUserProfile(session.user.id);
+            if (profileData) {
+              setUser(session.user);
+              setProfile(profileData);
+              setIsCreatingProfile(false);
+            } else {
+              // Try RLS bypass fallback before forcing logout
+              try {
+                const { data: fallbackProfile } = await supabaseClient.rpc('get_profile_by_id', {
+                  profile_id: session.user.id
+                });
+                
+                if (fallbackProfile && fallbackProfile.length > 0) {
+                  setUser(session.user);
+                  setProfile(fallbackProfile[0]);
+                  setIsCreatingProfile(false);
+                } else {
+                  // Only force logout if we're not creating a profile AND no fallback found
+                  if (!isCreatingProfile) {
+                    await forceSignOut('No profile found');
+                  } else {
+                    setUser(session.user);
+                  }
+                }
+              } catch (fallbackError) {
+                if (!isCreatingProfile) {
+                  await forceSignOut('Profile loading error');
+                } else {
+                  setUser(session.user);
+                }
+              }
+            }
+          } catch (error) {
+            // Try RLS bypass fallback for session timing issues
+            try {
+              const { data: fallbackProfile } = await supabaseClient.rpc('get_profile_by_id', {
+                profile_id: session.user.id
+              });
+              
+              if (fallbackProfile && fallbackProfile.length > 0) {
+                setUser(session.user);
+                setProfile(fallbackProfile[0]);
+                setIsCreatingProfile(false);
+              } else {
+                if (!isCreatingProfile) {
+                  await forceSignOut('Profile loading error');
+                } else {
+                  setUser(session.user);
+                }
+              }
+            } catch (fallbackError) {
+              if (!isCreatingProfile) {
+                await forceSignOut('Profile loading error');
+              } else {
+                setUser(session.user);
+              }
+            }
+          }
+        } else {
+          setUser(null);
+          setProfile(null);
         }
         setLoading(false);
 
         // Listen for auth changes
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
           async (event: any, session: any) => {
-            setUser(session?.user ?? null);
             if (session?.user) {
-              // For Google Auth users, ensure profile exists using same RPC as email signup
-              if (event === 'SIGNED_IN' && session.user.app_metadata?.provider === 'google') {
-                try {
-                  // Wait for profile creation like email signup
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  
-                  // Check if profile exists, if not create it manually
-                  const { data: profileData, error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .select('id')
-                    .eq('id', session.user.id)
-                    .single();
-                  
-                  if (profileError && profileError.code === 'PGRST116') {
-                    // Use the same RPC function as email signup
-                    await supabaseClient.rpc('create_missing_profile', {
-                      p_user_id: session.user.id,
-                      p_email: session.user.email,
-                      p_username: session.user.email?.split('@')[0] || 'user',
-                      p_referral_code: session.user.user_metadata?.referral_code || null
+              // Validate profile exists before setting user as logged in
+              try {
+                const profileData = await getUserProfile(session.user.id);
+                if (profileData) {
+                  // Use startTransition to avoid useInsertionEffect warning
+                  startTransition(() => {
+                    setUser(session.user);
+                    setProfile(profileData);
+                  });
+                } else {
+                  // Try RLS bypass fallback before forcing logout
+                  try {
+                    const { data: fallbackProfile } = await supabaseClient.rpc('get_profile_by_id', {
+                      profile_id: session.user.id
                     });
                     
-                    // Wait for profile creation and retry loading
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    // Manually fetch and set the profile
-                    let profileAttempts = 0;
-                    const maxAttempts = 5;
-                    
-                    while (profileAttempts < maxAttempts) {
-                      try {
-                        const { data: newProfile, error: profileFetchError } = await supabaseClient
-                          .from('profiles')
-                          .select('*')
-                          .eq('id', session.user.id)
-                          .single();
-                        
-                        if (!profileFetchError && newProfile) {
-                          setProfile(newProfile);
-                          break;
-                        }
-                        
-                        profileAttempts++;
-                        if (profileAttempts < maxAttempts) {
-                          await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
-                      } catch (fetchError) {
-                        profileAttempts++;
-                        if (profileAttempts < maxAttempts) {
-                          await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
+                    if (fallbackProfile && fallbackProfile.length > 0) {
+                      startTransition(() => {
+                        setUser(session.user);
+                        setProfile(fallbackProfile[0]);
+                      });
+                    } else {
+                      // Only force logout on explicit sign out events, not session refresh
+                      if (event === 'SIGNED_OUT') {
+                        startTransition(() => {
+                          setUser(null);
+                          setProfile(null);
+                        });
+                      } else {
+                        // Keep user logged in, profile might be loading
+                        startTransition(() => {
+                          setUser(session.user);
+                        });
                       }
                     }
-                  } else {
-                    await loadProfile(session.user.id);
+                  } catch (fallbackError) {
+                    // Only force logout on explicit sign out events
+                    if (event === 'SIGNED_OUT') {
+                      startTransition(() => {
+                        setUser(null);
+                        setProfile(null);
+                      });
+                    } else {
+                      // Keep user logged in during profile loading issues
+                      startTransition(() => {
+                        setUser(session.user);
+                      });
+                    }
                   }
-                } catch (rpcError) {
-                  await loadProfile(session.user.id);
                 }
-              } else {
-                await loadProfile(session.user.id);
+              } catch (error) {
+                // Try RLS bypass fallback for session timing issues
+                try {
+                  const { data: fallbackProfile } = await supabaseClient.rpc('get_profile_by_id', {
+                    profile_id: session.user.id
+                  });
+                  
+                  if (fallbackProfile && fallbackProfile.length > 0) {
+                    startTransition(() => {
+                      setUser(session.user);
+                      setProfile(fallbackProfile[0]);
+                    });
+                  } else {
+                    // Only force logout on explicit sign out events
+                    if (event === 'SIGNED_OUT') {
+                      startTransition(() => {
+                        setUser(null);
+                        setProfile(null);
+                      });
+                    } else {
+                      // Keep user logged in during temporary issues
+                      startTransition(() => {
+                        setUser(session.user);
+                      });
+                    }
+                  }
+                } catch (fallbackError) {
+                  // Only force logout on explicit sign out events
+                  if (event === 'SIGNED_OUT') {
+                    startTransition(() => {
+                      setUser(null);
+                      setProfile(null);
+                    });
+                  } else {
+                    // Keep user logged in during temporary issues
+                    startTransition(() => {
+                      setUser(session.user);
+                    });
+                  }
+                }
               }
             } else {
-              setProfile(null);
+              startTransition(() => {
+                setUser(null);
+                setProfile(null);
+              });
             }
-            setLoading(false);
           }
         );
 
-        return () => subscription.unsubscribe();
+        // Store subscription for cleanup
+        return subscription;
       } catch (error) {
-        console.warn('Auth initialization failed:', error);
         setLoading(false);
+        return null;
       }
     };
 
-    initializeAuth();
+    let authSubscription: any = null;
+    
+    initializeAuth().then((subscription) => {
+      authSubscription = subscription;
+    });
 
     // Cleanup function
     return () => {
       if (retryTimeout) {
         clearTimeout(retryTimeout);
+      }
+      if (authSubscription) {
+        authSubscription.unsubscribe();
       }
     };
   }, [configLoading, isConfigValid, config]); // Add dependencies to re-run when config is ready
@@ -181,9 +283,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profileData = await getUserProfile(userId);
       if (profileData) {
         setProfile(profileData);
+      } else {
+        // No profile found - force logout
+        await forceSignOut('Profile not found');
       }
     } catch (error) {
-      // Fallback profile creation handled by auth state change for Google users
+      // Profile fetch failed - force logout
+      await forceSignOut('Failed to load profile');
+    }
+  };
+
+  const forceSignOut = async (reason: string) => {
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+      setUser(null);
+      setProfile(null);
+    } catch (error) {
+      // Force clear state even if sign out fails
+      setUser(null);
       setProfile(null);
     }
   };
@@ -213,7 +333,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       return { error: null };
     } catch (error) {
-      console.error('SignIn error:', error);
       return { error };
     }
   };
@@ -252,7 +371,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (profileError && profileError.code === 'PGRST116') {
           // Profile doesn't exist, create it manually
           
-          const { data: createResult, error: createError } = await supabaseClient
+          const { data: createResult, error: rpcError } = await supabaseClient
             .rpc('create_missing_profile', {
               p_user_id: data.user.id,
               p_email: email,
@@ -260,12 +379,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               p_referral_code: referralCode
             });
           
-          if (createError) {
-            return { error: createError };
+          if (rpcError) {
+            throw rpcError;
           }
         }
         
-        // Wait for profile to be fully created before continuing
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Manually fetch and set the profile to ensure it's loaded
@@ -281,13 +399,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .single();
             
             if (!profileFetchError && newProfile) {
-              setProfile(newProfile);
+              setTimeout(() => {
+                setProfile(newProfile);
+              }, 0);
               break;
-            }
-            
-            profileAttempts++;
-            if (profileAttempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
             }
           } catch (fetchError) {
             profileAttempts++;
@@ -319,23 +434,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-  const signOut = async () => {
-    setProfile(null);
-    setUser(null);
-    
+  const signOut = async (): Promise<void> => {
     try {
-      const supabaseClient = getSupabase();
-      if (supabaseClient) {
-        await supabaseClient.auth.signOut();
+      // Import GoogleAuthService dynamically to avoid circular imports
+      const GoogleAuthService = (await import('@/services/GoogleAuthService')).default;
+      const googleAuthService = new GoogleAuthService();
+      
+      // Clear Google Auth sessions completely
+      try {
+        await googleAuthService.signOut();
+      } catch (googleError) {
       }
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Supabase not initialized');
+      }
+      
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      
+      setUser(null);
+      setProfile(null);
     } catch (error) {
-      console.error('SignOut error:', error);
+      // Force clear state even if sign out fails
+      setUser(null);
+      setProfile(null);
     }
   };
 
   const refreshProfile = async () => {
     if (user) {
       await loadProfile(user.id);
+    }
+  };
+
+  const forceProfileRefresh = async (userId?: string) => {
+    const supabaseClient = getSupabase();
+    if (!supabaseClient) {
+      return;
+    }
+    
+    setIsCreatingProfile(true);
+    
+    let targetUserId = userId;
+    if (!targetUserId) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      targetUserId = session?.user?.id;
+    }
+    
+    if (targetUserId) {
+      
+      // Add a small delay to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const profileData = await getUserProfile(targetUserId);
+      if (profileData) {
+        // Get fresh session to ensure we have the latest user data
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.user) {
+          setUser(session.user);
+          setProfile(profileData);
+        } else {
+          // If session is lost but we have profile, create a minimal user object
+            const minimalUser = {
+            id: targetUserId,
+            email: profileData.email,
+            user_metadata: {},
+            app_metadata: {},
+            aud: 'authenticated',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          setUser(minimalUser);
+          setProfile(profileData);
+          }
+        setIsCreatingProfile(false);
+      } else {
+        setIsCreatingProfile(false);
+      }
+    } else {
+      setIsCreatingProfile(false);
     }
   };
 
@@ -347,6 +528,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     refreshProfile,
+    forceProfileRefresh,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

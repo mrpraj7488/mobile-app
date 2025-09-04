@@ -21,7 +21,7 @@ export default function AppInitializer({ children, isReady }: AppInitializerProp
       // Start fade in animation
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 300,
+        duration: 400,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {

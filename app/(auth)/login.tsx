@@ -13,21 +13,25 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LogIn, Gift, Users, Sparkles, Star, Mail, Lock, UserPlus } from 'lucide-react-native';
-import { useAuth } from '../../contexts/AuthContext';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, ChevronDown, ChevronUp, Gift, Users, LogIn, Check, X } from 'lucide-react-native';
+import { useAlert } from '@/contexts/AlertContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/contexts/NotificationContext';
-import GoogleAuthService from '../../services/GoogleAuthService';
-import EmailAuthService from '../../services/EmailAuthService';
-import * as Haptics from 'expo-haptics';
 import Animated, {
-  useAnimatedStyle,
   useSharedValue,
+  useAnimatedStyle,
   withSpring,
-  withRepeat,
   withTiming,
   interpolate,
+  Extrapolate,
+  withRepeat,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import GoogleConsentModal from '@/components/GoogleConsentModal';
+import GoogleAuthService from '@/services/GoogleAuthService';
+import EmailAuthService from '@/services/EmailAuthService';
+import { getSupabase } from '@/lib/supabase';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isVerySmallScreen = screenWidth < 350;
@@ -40,11 +44,21 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [referralValidation, setReferralValidation] = useState<{
+    isValid: boolean | null;
+    isChecking: boolean;
+    message: string;
+  }>({ isValid: null, isChecking: false, message: '' });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showReferralInput, setShowReferralInput] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
+  const [consentLoading, setConsentLoading] = useState(false);
+  const [newUserData, setNewUserData] = useState<{userId: string, email: string, pendingAuth?: any} | null>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const { user, profile, loading: authLoading, signIn } = useAuth();
+  const [validationTimeout, setValidationTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  
+  const { user, profile, loading: authLoading, signIn, signUp, forceProfileRefresh } = useAuth();
   const { colors, isDark } = useTheme();
   const { showError, showSuccess, showInfo } = useNotification();
   const router = useRouter();
@@ -91,6 +105,15 @@ export default function Login() {
   }, []);
 
   const handleGoogleSignIn = async () => {
+    // Block sign-in if referral code is invalid
+    if (referralCode.trim() && referralValidation.isValid === false) {
+      showError(
+        'Invalid Referral Code',
+        'Please enter a valid referral code or remove it to continue.'
+      );
+      return;
+    }
+
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
@@ -103,34 +126,48 @@ export default function Login() {
     setGoogleLoading(true);
     
     try {
-      const googleAuthService = GoogleAuthService.getInstance();
-      const result = await googleAuthService.signInWithGoogle(
-        referralCode.trim() || undefined
+      const trimmedReferralCode = referralCode.trim();
+      const result = await GoogleAuthService.getInstance().signInWithGoogle(
+        trimmedReferralCode || undefined
       );
       
       if (result.success) {
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Handle new users who need consent
+        if (result.isNewUser && result.pendingAuth) {
+          setNewUserData({
+            userId: 'pending',
+            email: result.pendingAuth.email,
+            pendingAuth: result.pendingAuth
+          });
+          setShowConsent(true);
+          return;
         }
         
-        if (referralCode.trim()) {
-          showSuccess(
-            '🎉 Welcome to VidGro!',
-            'You and your referrer have both earned 400 coins as a welcome bonus.'
+        // Handle existing users or completed authentication
+        if (result.user) {
+          const welcomeMessage = result.isNewUser ? 'Welcome to VidGro!' : 'Welcome back!';
+          const subMessage = result.isNewUser 
+            ? 'Your account has been created successfully' 
+            : 'You\'re signed in and ready to go';
+          
+          showSuccess(welcomeMessage, subMessage);
+          
+          // Force profile refresh to trigger immediate state update
+          await forceProfileRefresh(result.user.id);
+        }
+      } else {
+        // Handle consent rejection with user-friendly message
+        if (result.error === 'User declined consent') {
+          showInfo(
+            'Account Creation Cancelled',
+            'You can try again anytime when you\'re ready to join VidGro!'
           );
         } else {
-          showSuccess(
-            '🎉 Welcome to VidGro!',
-            'Successfully signed in with Google! Start promoting your videos and earning coins.'
+          showError(
+            'Sign In Failed',
+            result.error || 'Unable to sign in with Google. Please try again.'
           );
         }
-        
-        // Navigation will be handled by useEffect when profile loads
-      } else {
-        showError(
-          'Sign In Failed',
-          result.error || 'Unable to sign in with Google. Please try again.'
-        );
       }
     } catch (error) {
       console.error('Google Sign In Error:', error);
@@ -150,6 +187,78 @@ export default function Login() {
       }
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleConsentContinue = async () => {
+    if (!newUserData?.pendingAuth) return;
+    
+    setConsentLoading(true);
+    
+    try {
+      const result = await GoogleAuthService.getInstance().completeAuthenticationWithConsent(
+        newUserData.pendingAuth,
+        referralCode
+      );
+      
+      if (result.success && result.user) {
+        setShowConsent(false);
+        setNewUserData(null);
+        
+        showSuccess(
+          'Welcome to VidGro!',
+          'Your account has been created successfully'
+        );
+        
+        // Force profile refresh to trigger immediate state update
+        await forceProfileRefresh(result.user.id);
+      } else {
+        showError(
+          'Account Creation Failed',
+          result.error || 'Unable to create your account. Please try again.'
+        );
+      }
+    } catch (error) {
+      console.error('Consent completion error:', error);
+      showError(
+        'Account Creation Failed',
+        'Unable to create your account. Please try again.'
+      );
+    } finally {
+      setConsentLoading(false);
+    }
+  };
+
+  const handleConsentCancel = async () => {
+    if (!newUserData) return;
+    
+    setConsentLoading(true);
+    
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        // Delete the account using existing RPC function
+        await supabase.rpc('delete_user_account');
+        
+        // Sign out from Google and Supabase
+        const googleAuthService = GoogleAuthService.getInstance();
+        await googleAuthService.signOut();
+      }
+      
+      showInfo(
+        'Sign-in Cancelled',
+        'You chose not to create a VidGro account. You can try again anytime!'
+      );
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+      showError(
+        'Deletion Failed',
+        'Unable to delete account. Please try signing out manually.'
+      );
+    } finally {
+      setShowConsent(false);
+      setNewUserData(null);
+      setConsentLoading(false);
     }
   };
 
@@ -240,13 +349,90 @@ export default function Login() {
       );
     }
   };
+
   
+  // Referral code validation function
+  const validateReferralCode = async (code: string) => {
+    if (!code.trim()) {
+      setReferralValidation({ isValid: null, isChecking: false, message: '' });
+      return;
+    }
+
+    setReferralValidation({ isValid: null, isChecking: true, message: 'Checking...' });
+
+    try {
+      const supabase = getSupabase();
+      if (!supabase) {
+        setReferralValidation({ isValid: false, isChecking: false, message: 'Connection error' });
+        return;
+      }
+
+      const trimmedCode = code.trim();
+
+      // Use RLS bypass function for referral validation
+      const { data: result, error } = await supabase.rpc('validate_referral_code', {
+        p_referral_code: trimmedCode
+      });
+
+      if (error) {
+        setReferralValidation({ 
+          isValid: false, 
+          isChecking: false, 
+          message: 'Validation failed' 
+        });
+      } else if (result && result.valid) {
+        setReferralValidation({ 
+          isValid: true, 
+          isChecking: false, 
+          message: `Valid! Referred by ${result.referrer_username}` 
+        });
+      } else {
+        setReferralValidation({ 
+          isValid: false, 
+          isChecking: false, 
+          message: result?.error || 'Invalid referral code' 
+        });
+      }
+    } catch (error) {
+      console.error('🔍 Referral validation error:', error);
+      setReferralValidation({ 
+        isValid: false, 
+        isChecking: false, 
+        message: 'Validation failed' 
+      });
+    }
+  };
+
+  // Handle referral code input with debounced validation
+  const handleReferralCodeChange = (text: string) => {
+    setReferralCode(text);
+    
+    // Clear existing timeout
+    if (validationTimeout) {
+      clearTimeout(validationTimeout);
+    }
+    
+    // Set new timeout for validation
+    const timeout = setTimeout(() => {
+      validateReferralCode(text);
+    }, 500); // 500ms debounce
+    
+    setValidationTimeout(timeout);
+  };
+
   const toggleReferralInput = () => {
     setShowReferralInput(!showReferralInput);
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    
+    // Reset validation when toggling
+    if (!showReferralInput) {
+      setReferralValidation({ isValid: null, isChecking: false, message: '' });
+      setReferralCode('');
+    }
   };
+
 
   // Animated styles - moved to avoid render-time calculations
   const animatedButtonStyle = useAnimatedStyle(() => {
@@ -288,10 +474,13 @@ export default function Login() {
     };
   }, []);
 
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'android' ? -50 : 0}
+      enabled={Platform.OS !== 'android'}
     >
       <LinearGradient
         colors={isDark 
@@ -306,6 +495,12 @@ export default function Login() {
           contentContainerStyle={[styles.scrollContent, isTablet && styles.scrollContentTablet]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          bounces={false}
+          overScrollMode="never"
+          style={{ backgroundColor: 'transparent' }}
+          nestedScrollEnabled={true}
+          keyboardDismissMode={Platform.OS === 'android' ? 'on-drag' : 'interactive'}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'android'}
         >
           {/* Header Section */}
           <Animated.View style={[styles.header, slideAnimatedStyle]}>
@@ -477,23 +672,56 @@ export default function Login() {
                 
                 {showReferralInput && (
                   <Animated.View style={[styles.referralInputContainer, slideAnimatedStyle]}>
-                    <TextInput
-                      style={[
-                        styles.referralInput,
+                    <View style={styles.referralInputWrapper}>
+                      <TextInput
+                        style={[
+                          styles.referralInput,
+                          {
+                            backgroundColor: colors.inputBackground,
+                            color: colors.text,
+                            borderColor: referralValidation.isValid === true 
+                              ? colors.success 
+                              : referralValidation.isValid === false 
+                                ? colors.error 
+                                : colors.border
+                          }
+                        ]}
+                        placeholder="Enter referral code (optional)"
+                        placeholderTextColor={colors.textSecondary}
+                        value={referralCode}
+                        onChangeText={handleReferralCodeChange}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        maxLength={10}
+                      />
+                      
+                      {/* Validation Icon */}
+                      <View style={styles.validationIconContainer}>
+                        {referralValidation.isChecking ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : referralValidation.isValid === true ? (
+                          <Check size={20} color={colors.success} />
+                        ) : referralValidation.isValid === false ? (
+                          <X size={20} color={colors.error} />
+                        ) : null}
+                      </View>
+                    </View>
+                    
+                    {/* Validation Message */}
+                    {referralValidation.message && (
+                      <Text style={[
+                        styles.validationMessage,
                         {
-                          backgroundColor: colors.inputBackground,
-                          color: colors.text,
-                          borderColor: colors.border
+                          color: referralValidation.isValid === true 
+                            ? colors.success 
+                            : referralValidation.isValid === false 
+                              ? colors.error 
+                              : colors.textSecondary
                         }
-                      ]}
-                      placeholder="Enter referral code (optional)"
-                      placeholderTextColor={colors.textSecondary}
-                      value={referralCode}
-                      onChangeText={setReferralCode}
-                      autoCapitalize="characters"
-                      autoCorrect={false}
-                      maxLength={10}
-                    />
+                      ]}>
+                        {referralValidation.message}
+                      </Text>
+                    )}
                   </Animated.View>
                 )}
               </View>
@@ -508,11 +736,11 @@ export default function Login() {
                   shadowColor: colors.shadowColor,
                   borderColor: colors.border
                 },
-                googleLoading && styles.buttonDisabled,
+                (googleLoading || (!!referralCode.trim() && referralValidation.isValid === false)) && styles.buttonDisabled,
                 animatedButtonStyle
               ]}
               onPress={handleGoogleSignIn}
-              disabled={googleLoading}
+              disabled={googleLoading || (!!referralCode.trim() && referralValidation.isValid === false)}
               activeOpacity={0.9}
             >
               <LinearGradient
@@ -544,6 +772,18 @@ export default function Login() {
           </Animated.View>
         </ScrollView>
       </LinearGradient>
+      
+      {/* Google-style Professional Consent Popup */}
+      {showConsent && (
+        <GoogleConsentModal
+          visible={showConsent}
+          userEmail={newUserData?.email || 'User'}
+          loading={consentLoading}
+          onAccept={handleConsentContinue}
+          onDecline={handleConsentCancel}
+          onClose={() => !consentLoading && setShowConsent(false)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -554,11 +794,14 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+    minHeight: screenHeight,
   },
   scrollContent: {
     flexGrow: 1,
+    minHeight: Platform.OS === 'android' ? screenHeight - 120 : screenHeight - 100,
     paddingHorizontal: isVerySmallScreen ? 20 : 24,
-    paddingVertical: Platform.OS === 'ios' ? 60 : 40,
+    paddingVertical: Platform.OS === 'android' ? 30 : 60,
+    paddingBottom: Platform.OS === 'android' ? 150 : 120,
   },
   scrollContentTablet: {
     paddingHorizontal: 60,
@@ -691,17 +934,38 @@ const styles = StyleSheet.create({
   referralInputContainer: {
     marginTop: isVerySmallScreen ? 12 : 16,
   },
+  referralInputWrapper: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   referralInput: {
+    flex: 1,
     borderRadius: isVerySmallScreen ? 12 : 16,
     paddingHorizontal: isVerySmallScreen ? 16 : 20,
     paddingVertical: isVerySmallScreen ? 14 : 16,
+    paddingRight: isVerySmallScreen ? 48 : 52, // Space for validation icon
     fontSize: isVerySmallScreen ? 14 : 16,
-    borderWidth: 1,
+    borderWidth: 2, // Increased border width for better validation feedback
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  validationIconContainer: {
+    position: 'absolute',
+    right: isVerySmallScreen ? 12 : 16,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  validationMessage: {
+    fontSize: isVerySmallScreen ? 12 : 14,
+    marginTop: 8,
+    marginLeft: isVerySmallScreen ? 16 : 20,
+    fontWeight: '500',
   },
   googleButton: {
     borderRadius: isVerySmallScreen ? 16 : 20,

@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
+  TouchableOpacity,
+  Dimensions,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
-import { useAuth } from '@/contexts/AuthContext';
-import { getSupabase } from '../../lib/supabase';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useFeatureFlag } from '@/hooks/useFeatureFlags';
-import { useRouter } from 'expo-router';
-import GlobalHeader from '@/components/GlobalHeader';
-import { ChartBar as BarChart3, Eye, Coins, Play, Pause, CircleCheck as CheckCircle, Timer, Pencil as Edit3, Activity, TrendingUp, ChevronDown, ChevronUp, RefreshCw, ShoppingCart } from 'lucide-react-native';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getSupabase } from '@/lib/supabase';
+import { Eye, Clock, Play, TrendingUp, Coins, Users, Calendar, ChevronRight, CheckCircle, Pause, Timer, BarChart3, Edit3, ChevronUp, ChevronDown, Activity } from 'lucide-react-native';
+import GlobalHeader from '@/components/GlobalHeader';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 interface UserAnalytics {
   total_videos_promoted: number;
@@ -67,9 +65,8 @@ interface VideoAnalytics {
 export default function Analytics() {
   const { user, profile, loading: authLoading } = useAuth();
   const { colors, isDark } = useTheme();
-  const { config } = useConfig();
-  const analyticsEnabled = useFeatureFlag('analyticsEnabled');
-  const router = useRouter();
+  const params = useLocalSearchParams();
+  const analyticsEnabled = true; // Always enabled for now
   const [menuVisible, setMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -87,10 +84,26 @@ export default function Analytics() {
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/(auth)/login');
+    if (user && profile && analyticsEnabled) {
+      fetchAnalytics();
     }
-  }, [user, authLoading]);
+  }, [user, profile, analyticsEnabled]);
+
+  // Add focus effect to refresh when returning from edit screen
+  useFocusEffect(
+    useCallback(() => {
+      if (params.refresh === 'true' && user && profile && analyticsEnabled) {
+        fetchAnalytics();
+        // Clear the refresh parameter
+        router.replace('/(tabs)/analytics');
+      }
+    }, [params.refresh, user, profile, analyticsEnabled])
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    // Transactions are fetched as part of fetchAnalytics
+  }, [user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -156,6 +169,7 @@ export default function Analytics() {
         clearInterval(statusCheckInterval);
       };
     }
+    return undefined;
   }, [user, analyticsEnabled]);
 
   // Removed unnecessary useEffect for videos processing
@@ -223,6 +237,7 @@ export default function Analytics() {
         .order('created_at', { ascending: false })
         .limit(10);
 
+
       if (!activityError && activityData && activityData.length > 0) {
         setRecentActivity(activityData.map((tx: any) => ({
           id: tx.id,
@@ -233,36 +248,28 @@ export default function Analytics() {
           status: 'completed'
         })));
       } else {
-        // If no transactions found, create some sample data based on video activities
         
-        const sampleActivity = [];
-        
-        if (videosData && videosData.length > 0) {
-          videosData.slice(0, 3).forEach((video: any, index: number) => {
-            sampleActivity.push({
-              id: `sample-${index}`,
-              type: 'video_promotion',
-              amount: -(video.coin_cost || 100),
-              description: `Promoted video: ${video.title?.substring(0, 50)}...`,
-              timestamp: video.created_at,
+        // Try RLS bypass fallback for transactions
+        try {
+          const { data: rpcTransactions, error: rpcError } = await getSupabase()
+            .rpc('get_user_transactions', { p_user_id: user.id });
+          
+
+          if (!rpcError && rpcTransactions && rpcTransactions.length > 0) {
+            setRecentActivity(rpcTransactions.map((tx: any) => ({
+              id: tx.id,
+              type: tx.transaction_type || 'unknown',
+              amount: tx.amount || 0,
+              description: tx.description || `${formatTransactionType(tx.transaction_type || 'unknown')} transaction`,
+              timestamp: tx.created_at,
               status: 'completed'
-            });
-          });
+            })));
+          } else {
+            setRecentActivity([]);
+          }
+        } catch (rpcFallbackError) {
+          setRecentActivity([]);
         }
-        
-        // Add a sample coin purchase if no video data
-        if (sampleActivity.length === 0) {
-          sampleActivity.push({
-            id: 'sample-purchase',
-            type: 'coin_purchase',
-            amount: 1000,
-            description: 'Coin purchase for video promotions',
-            timestamp: new Date().toISOString(),
-            status: 'completed'
-          });
-        }
-        
-        setRecentActivity(sampleActivity);
       }
 
     } catch (error) {

@@ -1,343 +1,504 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Platform, StatusBar, Image } from 'react-native';
+import { Menu, X, User, Share2, Shield, FileText, Globe, Settings, MessageCircle, HelpCircle, LogOut, Trash2, CreditCard as Edit3 } from 'lucide-react-native';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { 
-  CheckCircle, 
-  AlertCircle, 
-  XCircle, 
-  Info, 
-  X,
-  AlertTriangle 
-} from 'lucide-react-native';
+import ThemeToggle from './ThemeToggle';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
-  runOnJS,
+  interpolate,
 } from 'react-native-reanimated';
 
 const { width: screenWidth } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 380;
+const isTablet = screenWidth >= 768;
 
-export type AlertType = 'success' | 'error' | 'warning' | 'info' | 'confirm';
-
-export interface AlertButton {
-  text: string;
-  onPress?: () => void;
-  style?: 'default' | 'cancel' | 'destructive';
-}
-
-export interface CustomAlertProps {
-  visible: boolean;
-  type: AlertType;
-  title: string;
-  message: string;
-  buttons?: AlertButton[];
-  onClose?: () => void;
-  autoClose?: boolean;
-  autoCloseDelay?: number;
-}
-
-const AnimatedView = Animated.createAnimatedComponent(View);
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
-export default function CustomAlert({
-  visible,
-  type,
-  title,
-  message,
-  buttons = [{ text: 'OK', style: 'default' }],
-  onClose,
-  autoClose = false,
-  autoCloseDelay = 3000,
-}: CustomAlertProps) {
+interface GlobalHeaderProps {
+  title: string;
+  showCoinDisplay?: boolean;
+  menuVisible: boolean;
+  setMenuVisible: (visible: boolean) => void;
+}
+
+export default function GlobalHeader({ 
+  title, 
+  showCoinDisplay = true,
+  menuVisible, 
+  setMenuVisible 
+}: GlobalHeaderProps) {
+  const { profile, signOut } = useAuth();
   const { colors, isDark } = useTheme();
-  const scale = useSharedValue(0);
-  const opacity = useSharedValue(0);
-  const [isAnimating, setIsAnimating] = React.useState(false);
+  const router = useRouter();
+  
+  // Fixed status bar height calculation to prevent layout shifts
+  const statusBarHeight = React.useMemo(() => {
+    return Platform.OS === 'ios' 
+      ? (isTablet ? 60 : 50) 
+      : (StatusBar.currentHeight || 0) + (isTablet ? 20 : 16);
+  }, []);
 
-  React.useEffect(() => {
-    if (visible && !isAnimating) {
-      setIsAnimating(true);
-      // Reset values first
-      opacity.value = 0;
-      scale.value = 0;
-      
-      // Animate in
-      opacity.value = withTiming(1, { duration: 300 });
-      scale.value = withSpring(1, {
-        damping: 15,
-        stiffness: 300,
-      }, () => {
-        runOnJS(setIsAnimating)(false);
-      });
+  // Memoize styles to prevent recreation on each render
+  const styles = React.useMemo(() => getHeaderStyles(statusBarHeight), [statusBarHeight]);
 
-      if (autoClose && type !== 'confirm') {
-        const timer = setTimeout(() => {
-          handleClose();
-        }, autoCloseDelay);
+  // Animation values
+  const menuScale = useSharedValue(1);
+  const coinScale = useSharedValue(1);
 
-        return () => clearTimeout(timer);
-      }
-    } else if (!visible && isAnimating) {
-      // Only animate out if we were animating in
-      opacity.value = withTiming(0, { duration: 200 });
-      scale.value = withTiming(0, { duration: 200 }, () => {
-        runOnJS(setIsAnimating)(false);
-      });
+  const sideMenuItems = [
+    { icon: Share2, title: 'Refer a Friend', route: '/refer-friend' },
+    { icon: Shield, title: 'Privacy Policy', route: '/privacy-policy' },
+    { icon: FileText, title: 'Terms of Service', route: '/terms' },
+    { icon: Globe, title: 'Languages', route: '/languages' },
+    { icon: MessageCircle, title: 'Contact Support', route: '/contact-support' },
+    { icon: HelpCircle, title: 'FAQ', route: '/faq' },
+    { icon: LogOut, title: 'Log Out', action: 'logout', color: '#E74C3C' },
+    { icon: Trash2, title: 'Delete Account', route: '/delete-account', color: '#E74C3C' },
+  ];
+
+  const handleItemPress = async (item: any) => {
+    if (item.action === 'logout') {
+      await handleLogout();
+    } else if (item.route) {
+      // Close menu first, then navigate with delay
+      setMenuVisible(false);
+      setTimeout(() => {
+        router.push(item.route);
+      }, 100);
     }
-    return undefined;
-  }, [visible]);
+  };
 
-  const handleClose = () => {
-    if (isAnimating) return; // Prevent multiple close calls during animation
+  const handleEditProfile = () => {
+    // Ensure menu is closed immediately and state is reset
+    setMenuVisible(false);
+    // Add small delay to ensure state update before navigation
+    setTimeout(() => {
+      router.push('/edit-profile');
+    }, 100);
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    setMenuVisible(false);
     
-    setIsAnimating(true);
-    opacity.value = withTiming(0, { duration: 200 });
-    scale.value = withTiming(0, { duration: 200 }, () => {
-      runOnJS(setIsAnimating)(false);
-      if (onClose) {
-        runOnJS(onClose)();
-      }
+    try {
+      await signOut();
+      // Let AuthContext handle navigation via auth state change
+    } catch (error) {
+      // Fallback navigation if signOut fails
+      router.replace('/(auth)/login');
+    }
+  };
+
+  const handleMenuPress = () => {
+    menuScale.value = withSpring(0.9, { damping: 15, stiffness: 400 }, () => {
+      menuScale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    });
+    setMenuVisible(!menuVisible);
+  };
+
+  const handleCoinPress = () => {
+    coinScale.value = withSpring(0.95, { damping: 15, stiffness: 400 }, () => {
+      coinScale.value = withSpring(1, { damping: 15, stiffness: 400 });
     });
   };
 
-  const handleButtonPress = (button: AlertButton) => {
-    if (isAnimating) return; // Prevent button presses during animation
-    
-    handleClose();
-    // Execute button action after starting close animation
-    if (button.onPress) {
-      setTimeout(() => button.onPress!(), 150);
-    }
-  };
-
-  const getIcon = () => {
-    const iconSize = isSmallScreen ? 28 : 32;
-    switch (type) {
-      case 'success':
-        return <CheckCircle size={iconSize} color={colors.success} />;
-      case 'error':
-        return <XCircle size={iconSize} color={colors.error} />;
-      case 'warning':
-        return <AlertTriangle size={iconSize} color={colors.warning} />;
-      case 'info':
-        return <Info size={iconSize} color={colors.primary} />;
-      case 'confirm':
-        return <AlertCircle size={iconSize} color={colors.primary} />;
-      default:
-        return <Info size={iconSize} color={colors.primary} />;
-    }
-  };
-
-  const getGradientColors = (): [string, string] => {
-    switch (type) {
-      case 'success':
-        return isDark 
-          ? ['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.05)']
-          : ['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.05)'];
-      case 'error':
-        return isDark
-          ? ['rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.05)']
-          : ['rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.05)'];
-      case 'warning':
-        return isDark
-          ? ['rgba(245, 158, 11, 0.1)', 'rgba(245, 158, 11, 0.05)']
-          : ['rgba(245, 158, 11, 0.1)', 'rgba(245, 158, 11, 0.05)'];
-      default:
-        return isDark
-          ? ['rgba(74, 144, 226, 0.1)', 'rgba(74, 144, 226, 0.05)']
-          : ['rgba(128, 0, 128, 0.1)', 'rgba(128, 0, 128, 0.05)'];
-    }
-  };
-
-  const overlayStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
+  const menuAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: menuScale.value }],
   }));
 
-  const alertStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
+  const coinAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: coinScale.value }],
   }));
 
-  // Don't render if not visible and not animating
-  if (!visible && !isAnimating) {
-    return null;
-  }
-
-  return (
-    <AnimatedView style={[styles.overlay, overlayStyle]}>
-      <AnimatedTouchableOpacity 
-        style={styles.overlayTouch}
-        activeOpacity={1}
-        onPress={type !== 'confirm' && !isAnimating ? handleClose : undefined}
-      />
-        
-        <AnimatedView style={[styles.alertContainer, alertStyle]}>
-          <LinearGradient
-            colors={getGradientColors()}
-            style={styles.alertGradient}
-          >
-            <View style={[styles.alert, { backgroundColor: colors.surface }]}>
-              {/* Close button for non-confirm alerts */}
-              {type !== 'confirm' && (
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={!isAnimating ? handleClose : undefined}
-                  disabled={isAnimating}
-                >
-                  <X size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
+  const renderSideMenu = () => (
+    <View style={[
+      styles.sideMenu, 
+      { 
+        left: menuVisible ? 0 : -Math.min(300, screenWidth * 0.8), 
+        backgroundColor: colors.surface,
+        width: Math.min(280, screenWidth * 0.85)
+      }
+    ]}>
+      <LinearGradient
+        colors={isDark ? [colors.headerBackground, colors.surface] : ['#800080', '#800080']}
+        style={styles.sideMenuHeader}
+      >
+        <View style={styles.sideMenuHeaderContent}>
+          <View style={styles.profileSection}>
+            <TouchableOpacity 
+              style={[styles.profileAvatar, { backgroundColor: isDark ? 'rgba(74, 144, 226, 0.25)' : 'rgba(255, 255, 255, 0.25)' }]}
+              onPress={handleEditProfile}
+              activeOpacity={0.8}
+            >
+              {profile?.avatar_url ? (
+                <Image 
+                  source={{ uri: profile.avatar_url }}
+                  style={styles.avatarImage}
+                  defaultSource={require('@/assets/images/icon.png')}
+                />
+              ) : (
+                <User size={isSmallScreen ? 28 : isTablet ? 40 : 36} color="white" />
               )}
-
-              {/* Icon */}
-              <View style={styles.iconContainer}>
-                {getIcon()}
-              </View>
-
-              {/* Content */}
-              <View style={styles.content}>
-                <Text style={[styles.title, { color: colors.text }]}>
-                  {title}
+            </TouchableOpacity>
+            <View style={styles.profileInfo}>
+              <TouchableOpacity onPress={handleEditProfile} activeOpacity={0.8}>
+                <Text style={[
+                  styles.profileName, 
+                  { 
+                    color: 'white',
+                    fontSize: isSmallScreen ? 18 : isTablet ? 24 : 20
+                  }
+                ]} numberOfLines={1}>
+                  {profile?.username || 'User'}
                 </Text>
-                <Text style={[styles.message, { color: colors.textSecondary }]}>
-                  {message}
+                <Text style={[
+                  styles.profileEmail, 
+                  { 
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    fontSize: isSmallScreen ? 15 : isTablet ? 18 : 16
+                  }
+                ]} numberOfLines={1}>
+                  {profile?.email || 'user@example.com'}
                 </Text>
-              </View>
-
-              {/* Buttons */}
-              <View style={styles.buttonContainer}>
-                {buttons.map((button, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.button,
-                      {
-                        backgroundColor: button.style === 'destructive' 
-                          ? colors.error 
-                          : button.style === 'cancel'
-                          ? colors.border
-                          : colors.primary,
-                        marginLeft: index > 0 ? 12 : 0,
-                        opacity: isAnimating ? 0.6 : 1,
-                      }
-                    ]}
-                    onPress={() => handleButtonPress(button)}
-                    disabled={isAnimating}
-                  >
-                    <Text style={[
-                      styles.buttonText,
-                      {
-                        color: button.style === 'cancel' ? colors.text : 'white',
-                      }
-                    ]}>
-                      {button.text}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              </TouchableOpacity>
             </View>
-          </LinearGradient>
-        </AnimatedView>
-      </AnimatedView>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={[styles.editButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
+              onPress={handleEditProfile}
+            >
+              <Edit3 size={isSmallScreen ? 22 : isTablet ? 28 : 24} color="white" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </LinearGradient>
+      
+      <View style={[styles.sideMenuContent, { backgroundColor: colors.surface }]}>
+        {/* Dark Mode Toggle Section - Moved above Refer a Friend */}
+        <View style={[styles.themeSection, { backgroundColor: isDark ? 'rgba(74, 144, 226, 0.1)' : 'rgba(128, 0, 128, 0.1)', borderBottomColor: colors.border }]}>
+          <View style={styles.themeSectionContent}>
+            <Text style={[styles.themeLabel, { 
+              color: colors.text,
+              fontSize: isSmallScreen ? 17 : isTablet ? 20 : 18
+            }]}>🌙 Dark Mode</Text>
+            <ThemeToggle />
+          </View>
+        </View>
+
+        {/* Menu Items */}
+        {sideMenuItems.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[
+              styles.sideMenuItem, 
+              { 
+                borderBottomColor: colors.border,
+                paddingVertical: isSmallScreen ? 14 : isTablet ? 18 : 16
+              }
+            ]}
+            onPress={() => handleItemPress(item)}
+          >
+            <item.icon size={isSmallScreen ? 20 : isTablet ? 26 : 22} color={item.color || colors.primary} />
+            <Text style={[
+              styles.sideMenuText, 
+              { 
+                color: item.color || colors.text,
+                fontSize: isSmallScreen ? 15 : isTablet ? 18 : 16
+              }
+            ]}>
+              {item.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        
+        {/* Simplified App Version at the bottom - Responsive */}
+        <View style={[styles.versionSection, { backgroundColor: isDark ? 'rgba(74, 144, 226, 0.1)' : 'rgba(128, 0, 128, 0.1)', borderTopColor: colors.border }]}>
+          <Text style={[
+            styles.appName, 
+            { 
+              color: colors.text,
+              fontSize: isSmallScreen ? 20 : isTablet ? 28 : 24
+            }
+          ]}>
+            VidGro
+          </Text>
+          <Text style={[
+            styles.appVersion, 
+            { 
+              color: colors.textSecondary,
+              fontSize: isSmallScreen ? 13 : isTablet ? 16 : 14
+            }
+          ]}>
+            Version 1.0.0
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  
+  return (
+    <>
+      <LinearGradient
+        colors={isDark ? [colors.headerBackground, colors.surface] : ['#800080', '#800080']}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.leftSection}>
+            <AnimatedTouchableOpacity 
+              style={[styles.menuButton, menuAnimatedStyle]}
+              onPress={handleMenuPress}
+              activeOpacity={0.7}
+            >
+              <Menu size={isSmallScreen ? 26 : isTablet ? 32 : 28} color="white" />
+            </AnimatedTouchableOpacity>
+            <Text style={[
+              styles.brandTitle,
+              { fontSize: isSmallScreen ? 26 : isTablet ? 32 : 28 }
+            ]}>
+              VidGro
+            </Text>
+          </View>
+          
+          <View style={styles.rightSection}>
+            {showCoinDisplay && (
+              <AnimatedTouchableOpacity 
+                style={[styles.coinDisplay, coinAnimatedStyle]}
+                onPress={handleCoinPress}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={isDark ? ['rgba(74, 144, 226, 0.3)', 'rgba(74, 144, 226, 0.15)'] : ['rgba(255, 255, 255, 0.25)', 'rgba(255, 255, 255, 0.15)']}
+                  style={[styles.coinBadge, {
+                    borderColor: isDark ? 'rgba(74, 144, 226, 0.4)' : 'rgba(255, 255, 255, 0.3)',
+                    paddingHorizontal: isSmallScreen ? 10 : isTablet ? 16 : 12,
+                    paddingVertical: isSmallScreen ? 8 : isTablet ? 10 : 8
+                  }]}
+                >
+                  <Text style={[styles.coinIcon, { fontSize: isSmallScreen ? 16 : isTablet ? 20 : 18 }]}>🪙</Text>
+                  <Text style={[
+                    styles.coinText,
+                    { fontSize: isSmallScreen ? 16 : isTablet ? 20 : 18 }
+                  ]}>
+                    {profile?.coins?.toLocaleString() || '0'}
+                  </Text>
+                </LinearGradient>
+              </AnimatedTouchableOpacity>
+            )}
+          </View>
+        </View>
+      </LinearGradient>
+      
+      {renderSideMenu()}
+      
+      {menuVisible && (
+        <TouchableOpacity 
+          style={[styles.overlay, { backgroundColor: colors.overlay }]}
+          onPress={() => setMenuVisible(false)}
+        />
+      )}
+    </>
   );
 }
 
-const styles = StyleSheet.create({
+const getHeaderStyles = (statusBarHeight: number) => StyleSheet.create({
+  header: {
+    paddingTop: statusBarHeight,
+    paddingBottom: isSmallScreen ? 16 : isTablet ? 20 : 18,
+    paddingHorizontal: isSmallScreen ? 18 : isTablet ? 28 : 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: isSmallScreen ? 48 : isTablet ? 56 : 52,
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  menuButton: {
+    marginRight: isSmallScreen ? 10 : isTablet ? 16 : 14,
+    padding: isSmallScreen ? 6 : isTablet ? 8 : 6,
+    width: isSmallScreen ? 36 : isTablet ? 44 : 40,
+    height: isSmallScreen ? 36 : isTablet ? 44 : 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: isSmallScreen ? 18 : isTablet ? 22 : 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  brandTitle: {
+    fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: 0.5,
+    flex: 1,
+    fontSize: isSmallScreen ? 30 : isTablet ? 42 : 38,
+  },
+  coinDisplay: {
+    flexShrink: 0,
+    borderRadius: isSmallScreen ? 18 : isTablet ? 24 : 20,
+    overflow: 'hidden',
+  },
+  coinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: isSmallScreen ? 18 : isTablet ? 24 : 20,
+    borderWidth: 1,
+    minWidth: isSmallScreen ? 60 : isTablet ? 80 : 70,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  coinIcon: {
+    marginRight: isSmallScreen ? 4 : isTablet ? 6 : 5,
+  },
+  coinText: {
+    color: 'white',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  sideMenu: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  sideMenuHeader: {
+    paddingTop: statusBarHeight,
+    paddingBottom: isSmallScreen ? 18 : isTablet ? 24 : 20,
+    paddingHorizontal: isSmallScreen ? 18 : isTablet ? 28 : 24,
+  },
+  sideMenuHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerActions: {
+    flexShrink: 0,
+  },
+  editButton: {
+    padding: isSmallScreen ? 8 : isTablet ? 10 : 8,
+    borderRadius: isSmallScreen ? 18 : isTablet ? 24 : 20,
+    width: isSmallScreen ? 36 : isTablet ? 44 : 40,
+    height: isSmallScreen ? 36 : isTablet ? 44 : 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  themeSection: {
+    paddingHorizontal: isSmallScreen ? 14 : isTablet ? 20 : 16,
+    paddingVertical: isSmallScreen ? 12 : isTablet ? 16 : 14,
+    borderBottomWidth: 1,
+  },
+  themeSectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  themeLabel: {
+    fontWeight: '600',
+  },
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  profileAvatar: {
+    width: isSmallScreen ? 44 : isTablet ? 56 : 48,
+    height: isSmallScreen ? 44 : isTablet ? 56 : 48,
+    borderRadius: isSmallScreen ? 22 : isTablet ? 28 : 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: isSmallScreen ? 10 : isTablet ? 14 : 12,
+    flexShrink: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: isSmallScreen ? 22 : isTablet ? 28 : 24,
+  },
+  profileInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  profileName: {
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  profileEmail: {
+  },
+  sideMenuContent: {
+    flex: 1,
+  },
+  sideMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: isSmallScreen ? 14 : isTablet ? 20 : 16,
+    borderBottomWidth: 1,
+  },
+  sideMenuText: {
+    marginLeft: isSmallScreen ? 12 : isTablet ? 16 : 14,
+    fontWeight: '500',
+  },
+  versionSection: {
+    marginTop: 'auto',
+    paddingTop: isSmallScreen ? 12 : isTablet ? 16 : 14,
+    paddingHorizontal: isSmallScreen ? 14 : isTablet ? 20 : 16,
+    paddingBottom: isSmallScreen ? 12 : isTablet ? 16 : 14,
+    borderTopWidth: 1,
+    alignItems: 'center',
+  },
+  appName: {
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  appVersion: {
+    fontWeight: '500',
+  },
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    zIndex: 9999,
-    elevation: 9999,
-  },
-  overlayTouch: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  alertContainer: {
-    width: '100%',
-    maxWidth: isSmallScreen ? 280 : 320,
-    alignItems: 'center',
-    zIndex: 10000,
-    elevation: 10000,
-  },
-  alertGradient: {
-    borderRadius: 16,
-    padding: 2,
-  },
-  alert: {
-    borderRadius: 14,
-    padding: isSmallScreen ? 20 : 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 16,
-    zIndex: 10001,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    padding: 8,
-    zIndex: 1,
-  },
-  iconContainer: {
-    marginBottom: 16,
-  },
-  content: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: isSmallScreen ? 18 : 20,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-    lineHeight: isSmallScreen ? 24 : 26,
-  },
-  message: {
-    fontSize: isSmallScreen ? 14 : 16,
-    textAlign: 'center',
-    lineHeight: isSmallScreen ? 20 : 22,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  button: {
-    flex: 1,
-    paddingVertical: isSmallScreen ? 12 : 14,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '600',
+    zIndex: 999,
   },
 });

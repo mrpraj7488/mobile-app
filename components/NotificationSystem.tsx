@@ -88,19 +88,18 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onDis
       }),
     ]).start();
 
-    // Auto dismiss with battery optimization
-    if (!notification.persistent && notification.duration !== 0) {
-      const batteryOptimizer = BatteryOptimizer.getInstance();
-      const optimizedDuration = batteryOptimizer.isInLowPowerMode() 
-        ? (notification.duration || 4000) * 0.7 // Faster dismiss in low power mode
-        : (notification.duration || 4000);
-      
+    // Auto-dismiss timer - set default duration if not specified and not persistent
+    const shouldAutoDismiss = !notification.persistent;
+    const duration = notification.duration || (shouldAutoDismiss ? 4000 : 0);
+    
+    if (shouldAutoDismiss && duration > 0) {
       const timer = setTimeout(() => {
         handleDismiss();
-      }, optimizedDuration);
+      }, duration);
 
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, []);
 
   const handleDismiss = () => {

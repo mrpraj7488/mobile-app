@@ -46,7 +46,7 @@ function SplashScreenContent() {
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 400,
+          duration: 500,
           useNativeDriver: true,
         }),
         Animated.spring(scaleAnim, {
@@ -58,7 +58,7 @@ function SplashScreenContent() {
       ]),
       Animated.timing(textFadeAnim, {
         toValue: 1,
-        duration: 300,
+        duration: 400,
         useNativeDriver: true,
       }),
     ]).start();
@@ -85,15 +85,16 @@ function SplashScreenContent() {
           const profileTimer = setTimeout(() => {
             // Proceed to app even if profile isn't loaded yet
             router.replace('/(tabs)');
-          }, 3000); // Increased timeout for Google Auth profile creation
-          return () => clearTimeout(profileTimer);
+          }, 3000); // Increased timeout for mock Google Auth
+          // Don't return cleanup here, handle it outside
         } else if (!user) {
           router.replace('/(auth)/login');
         }
-      }, 800); // Smooth transition delay
+      }, 500);
       
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [user, profile, loading, router]);
 
   const spin = spinValue.interpolate({

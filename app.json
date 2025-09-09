@@ -11,28 +11,10 @@
     "splash": {
       "image": "assets/images/flash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#FFFFFF",
+      "hideExponentText": true
     },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.vidgro.watch",
-      "buildNumber": "1",
-      "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": false,
-          "NSExceptionDomains": {
-            "youtube.com": {
-              "NSExceptionAllowsInsecureHTTPLoads": false,
-              "NSExceptionMinimumTLSVersion": "TLSv1.2"
-            },
-            "supabase.co": {
-              "NSExceptionAllowsInsecureHTTPLoads": false,
-              "NSExceptionMinimumTLSVersion": "TLSv1.2"
-            }
-          }
-        }
-      }
-    },
+    "jsEngine": "hermes",
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "assets/images/icon.png",
@@ -40,10 +22,12 @@
       },
       "package": "com.zozo1.vidgrowatch",
       "versionCode": 1,
+      "edgeToEdgeEnabled": false,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "com.google.android.gms.permission.AD_ID"
       ],
       "blockedPermissions": [
         "CAMERA",
@@ -70,6 +54,13 @@
       "expo-web-browser",
       "@react-native-google-signin/google-signin",
       [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-2892152842024866~2841739969",
+          "iosAppId": "ca-app-pub-2892152842024866~2841739969"
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
@@ -79,9 +70,6 @@
             "minSdkVersion": 24,
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
-          },
-          "ios": {
-            "deploymentTarget": "15.1"
           }
         }
       ]

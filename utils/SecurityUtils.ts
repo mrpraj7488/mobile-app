@@ -66,7 +66,6 @@ export class SecurityUtils {
       const obfuscatedValue = await this.obfuscateData(value);
       await SecureStore.setItemAsync(key, obfuscatedValue);
     } catch (error) {
-      console.warn('Secure store failed, falling back to regular storage');
       await AsyncStorage.setItem(key, value);
     }
   }
@@ -82,7 +81,6 @@ export class SecurityUtils {
       }
       return null;
     } catch (error) {
-      console.warn('Secure retrieve failed, falling back to regular storage');
       return await AsyncStorage.getItem(key);
     }
   }
@@ -323,7 +321,7 @@ export class SecurityUtils {
         await AsyncStorage.multiRemove(rateLimitKeys);
       }
     } catch (error) {
-      console.warn('Failed to clear security storage');
+      // Silent error
     }
   }
 

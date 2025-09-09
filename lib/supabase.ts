@@ -410,8 +410,7 @@ export const deleteVideo = async (
     });
   
   if (transactionError) {
-    console.error('Failed to record refund transaction:', transactionError);
-    // Don't fail the whole operation for transaction logging
+    // Transaction logging failed but refund was processed
   }
   
   return { 

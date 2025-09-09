@@ -84,22 +84,22 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    // Start animations after component mount
+    // Start animations after component mount with reduced timing for smoother transitions
     const timer = setTimeout(() => {
       sparkleRotation.value = withRepeat(
-        withTiming(360, { duration: 3000 }),
+        withTiming(360, { duration: 4000 }),
         -1,
         false
       );
       
       glowOpacity.value = withRepeat(
-        withTiming(0.8, { duration: 2000 }),
+        withTiming(0.6, { duration: 3000 }),
         -1,
         true
       );
       
-      slideAnimation.value = withTiming(1, { duration: 800 });
-    }, 100);
+      slideAnimation.value = withTiming(1, { duration: 400 });
+    }, 50);
 
     return () => clearTimeout(timer);
   }, []);
@@ -170,8 +170,6 @@ export default function Login() {
         }
       }
     } catch (error) {
-      console.error('Google Sign In Error:', error);
-      
       // Handle TurboModule error specifically
       if (error instanceof Error && error.message.includes('RNGoogleSignin')) {
         showInfo(
@@ -219,7 +217,6 @@ export default function Login() {
         );
       }
     } catch (error) {
-      console.error('Consent completion error:', error);
       showError(
         'Account Creation Failed',
         'Unable to create your account. Please try again.'
@@ -250,7 +247,6 @@ export default function Login() {
         'You chose not to create a VidGro account. You can try again anytime!'
       );
     } catch (error) {
-      console.error('Account deletion failed:', error);
       showError(
         'Deletion Failed',
         'Unable to delete account. Please try signing out manually.'
@@ -311,7 +307,6 @@ export default function Login() {
         );
       }
     } catch (error) {
-      console.error('Email Sign In Error:', error);
       showError(
         'Connection Error',
         'Unable to sign in. Please check your internet connection and try again.'
@@ -394,11 +389,10 @@ export default function Login() {
         });
       }
     } catch (error) {
-      console.error('🔍 Referral validation error:', error);
       setReferralValidation({ 
         isValid: false, 
         isChecking: false, 
-        message: 'Validation failed' 
+        message: 'Unable to validate referral code' 
       });
     }
   };

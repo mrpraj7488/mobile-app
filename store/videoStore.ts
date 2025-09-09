@@ -123,11 +123,10 @@ export const useVideoStore = create<VideoState>((set, get) => ({
         });
       }
     } catch (error) {
-      console.error('Error fetching videos:', error);
       set({ 
         isLoading: false, 
         currentVideo: null,
-        error: error instanceof Error ? error.message : 'Failed to load videos. Please check your connection.',
+        error: error instanceof Error ? error.message : 'Failed to fetch videos',
         canLoop: false
       });
     }
@@ -177,7 +176,6 @@ export const useVideoStore = create<VideoState>((set, get) => ({
       set({ canLoop: hasVideos });
       return hasVideos;
     } catch (error) {
-      // console.error('Error checking queue loop:', error);
       set({ canLoop: false });
       return false;
     }

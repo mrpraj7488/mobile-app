@@ -75,11 +75,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       onDismiss: options?.onDismiss,
     };
 
-    setNotifications(prev => {
-      // Limit to 3 notifications max to avoid cluttering
-      const updated = [notification, ...prev].slice(0, 3);
-      return updated;
-    });
+    // Use setTimeout to defer state update and avoid useInsertionEffect warnings
+    setTimeout(() => {
+      setNotifications(prev => {
+        // Limit to 3 notifications max to avoid cluttering
+        const updated = [notification, ...prev].slice(0, 3);
+        return updated;
+      });
+    }, 0);
 
     return id;
   }, [generateId]);
@@ -109,7 +112,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     persistent = false
   ): string => {
     // Remove existing network notifications to avoid duplicates
-    setNotifications(prev => prev.filter(n => n.type !== 'network'));
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.type !== 'network'));
+    }, 0);
     
     return showNotification('network', title, message, { 
       persistent,

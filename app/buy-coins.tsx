@@ -224,7 +224,6 @@ export default function BuyCoinsScreen() {
       }
       
     } catch (error) {
-      console.error('IAP initialization error:', error);
       setIapAvailable(false);
       showError('Purchase Setup Failed', '🔧 Unable to set up in-app purchases. Please ensure:\n\n• You have a stable internet connection\n• Google Play Store is updated\n• Your device supports purchases\n\n💡 Try restarting the app or contact support.');
     }
@@ -245,12 +244,10 @@ export default function BuyCoinsScreen() {
         });
 
       if (error) {
-        console.error('Failed to record transaction:', error);
-        // Don't throw here - coins were added successfully
+        // Transaction recording failed but coins were added
       }
 
     } catch (error) {
-      console.error('Transaction recording error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch')) {
@@ -325,14 +322,12 @@ export default function BuyCoinsScreen() {
           );
         }
       } else {
-        console.warn('⚠️ Purchase failed');
         showError(
           '💳 Purchase Failed', 
           'Your purchase could not be completed. No charges were made to your account.\n\n💡 Please try:\n• Checking your internet connection\n• Ensuring sufficient payment method balance\n• Restarting the app\n\nContact support if the issue persists.'
         );
       }
     } catch (error: any) {
-      console.error('Purchase error:', error);
       
       // Provide detailed user-friendly error messages
       const errorMessage = error instanceof Error ? error.message : String(error);

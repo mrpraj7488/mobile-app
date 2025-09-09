@@ -38,10 +38,11 @@ class SecurityService {
   private maxViolations: number = 3;
   private isSecurityCompromised: boolean = false;
   
-  // Critical app constants for integrity verification
   private readonly EXPECTED_BUNDLE_ID = 'com.vidgro.app';
   private readonly MINIMUM_VERSION = '1.0.0';
   private readonly SECURITY_SALT = 'VidGro2024Security';
+  private readonly PACKAGE_SIGNATURE = 'ca-app-pub-2892152842024866';
+  private readonly INTEGRITY_CHECK_INTERVAL = 300000; // 5 minutes
 
   static getInstance(): SecurityService {
     if (!SecurityService.instance) {
@@ -58,6 +59,7 @@ class SecurityService {
       threatLevel: 'low',
       shouldBlock: false
     };
+
 
     // Skip security checks in development mode
     const isDevelopment = __DEV__ || process.env.EXPO_PUBLIC_DEVELOPMENT_MODE === 'true' || process.env.EXPO_PUBLIC_SECURITY_MODE === 'development';
@@ -107,11 +109,10 @@ class SecurityService {
     if (adBlockResult.isBlocked) {
       result.warnings.push('Ad blocking detected');
       riskScore += 15;
-    }
-    
-    if (rootResult.isCompromised) {
-      result.warnings.push('Device is rooted/jailbroken');
-      riskScore += 20;
+    // Root/jailbreak detection
+    if (await this.checkRootStatus()) {
+      result.warnings.push('Device appears to be rooted/jailbroken');
+      result.threatLevel = 'high';
     }
     
     if (debugResult.isActive) {
@@ -131,11 +132,13 @@ class SecurityService {
       riskScore += 45;
     }
 
-    // Determine threat level and blocking decision
-    if (riskScore >= 70) {
+    // Check for debugging
+    if (debugResult.isActive && config?.responses?.onDebugDetected === 'block') {
+      result.errors.push('Debugging detected');
       result.threatLevel = 'critical';
       result.shouldBlock = true;
-      result.isValid = false;
+      await this.triggerSecurityLockdown();
+    }  result.isValid = false;
     } else if (riskScore >= 50) {
       result.threatLevel = 'high';
       result.shouldBlock = true;
@@ -461,7 +464,7 @@ class SecurityService {
       await this.notifySecurityBreach();
       
     } catch (error) {
-      console.error('Security lockdown failed:', error);
+      // Security lockdown failed
     }
   }
 
@@ -773,7 +776,7 @@ class SecurityService {
       await AsyncStorage.multiRemove(['user_coins', 'auth_token', 'user_data']);
       await SecureStore.deleteItemAsync('app_integrity_hash');
     } catch (error) {
-      console.error('Failed to clear sensitive data');
+      // Failed to clear sensitive data
     }
   }
 
@@ -788,7 +791,7 @@ class SecurityService {
       
       await SecureStore.setItemAsync('security_incident', JSON.stringify(incident));
     } catch (error) {
-      console.error('Failed to log security incident');
+      // Failed to log security incident
     }
   }
 
@@ -798,7 +801,7 @@ class SecurityService {
       this.isSecurityCompromised = true;
       await AsyncStorage.setItem('app_disabled', 'true');
     } catch (error) {
-      console.error('Failed to disable critical functions');
+      // Failed to disable critical functions
     }
   }
 
@@ -807,7 +810,7 @@ class SecurityService {
       // Notify backend of security breach
       // This would involve making an API call to report the incident
     } catch (error) {
-      console.error('Failed to notify security breach');
+      // Failed to notify security breach
     }
   }
 

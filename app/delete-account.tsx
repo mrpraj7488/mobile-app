@@ -10,6 +10,7 @@ import ScreenHeader from '@/components/ScreenHeader';
 import { useNetwork } from '@/services/NetworkHandler';
 import { supabase } from '@/lib/supabase';
 import { useNotification } from '@/contexts/NotificationContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DeleteAccountScreen() {
   const { user, profile, signOut } = useAuth();
@@ -46,23 +47,33 @@ export default function DeleteAccountScreen() {
       }
 
       // Delete user from Supabase Auth using RPC function
-      const { error: deleteError } = await supabase.rpc('delete_user_account');
+      const { data: deleteResult, error: deleteError } = await supabase.rpc('delete_user_account');
       
-      if (deleteError) {
-        // Fallback: just sign out the user
-        const { error: signOutError } = await supabase.auth.signOut();
-        if (signOutError) {
-          console.error('Sign out error:', signOutError);
-        }
+      if (deleteError || !deleteResult?.success) {
+        throw new Error(deleteError?.message || deleteResult?.error || 'Failed to delete account');
       }
 
       // Show slide notification
       showNotification('success', 'Account deleted successfully. Thank you for using VidGro.');
       
-      // Sign out and redirect after a brief delay
+      // Complete app reset after successful deletion with smooth transition
       setTimeout(async () => {
-        await signOut();
-        router.replace('/(auth)/login');
+        try {
+          // Navigate to login first to avoid visual disruption
+          router.replace('/(auth)/login');
+          
+          // Perform cleanup in background after navigation
+          setTimeout(async () => {
+            await signOut();
+            await AsyncStorage.clear();
+          }, 100);
+        } catch (error) {
+          // Fallback: just navigate and sign out
+          router.replace('/(auth)/login');
+          setTimeout(async () => {
+            await signOut();
+          }, 100);
+        }
       }, 1500);
       
     } catch (error: any) {

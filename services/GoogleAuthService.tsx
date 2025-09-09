@@ -11,7 +11,7 @@ try {
   GoogleSignin = googleSignInModule.GoogleSignin;
   statusCodes = googleSignInModule.statusCodes;
 } catch (error) {
-  console.warn('Google Sign-In module not available (likely running in Expo Go)');
+  // Google Sign-In module not available
 }
 
 interface GoogleAuthResult {

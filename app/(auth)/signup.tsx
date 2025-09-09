@@ -136,7 +136,6 @@ export default function SignUp() {
         );
       }
     } catch (error) {
-      console.error('Email Sign Up Error:', error);
       showError(
         'Connection Error',
         'Unable to create account. Please check your internet connection and try again.'

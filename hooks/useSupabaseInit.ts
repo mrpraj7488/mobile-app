@@ -33,7 +33,6 @@ export const useSupabaseInit = () => {
         }
         setIsInitialized(true);
       } catch (err) {
-        console.error('❌ Supabase initialization failed:', err);
         setError(err instanceof Error ? err.message : 'Unknown initialization error');
         setIsInitialized(false);
       } finally {

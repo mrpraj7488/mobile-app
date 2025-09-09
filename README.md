@@ -204,9 +204,8 @@ Transform your YouTube channel from zero to hero with VidGro - the revolutionary
 ## 🌍 **Join the VidGro Creator Revolution**
 
 ### **📱 Download Now**
-- **iOS**: Available on App Store
+- **iOS**: Available soon
 - **Android**: Available on Google Play
-- **Web**: Access from any browser
 
 ### **🤝 Community Stats**
 - **50,000+ Active Creators** worldwide

@@ -289,21 +289,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           
           // Check if already initialized to prevent duplicate initialization
           if (!adService.getInitializationStatus()) {
-            if (config.admob?.appId) {
-              const adConfig = {
-                appId: config.admob.appId,
-                bannerId: config.admob.bannerId || '',
-                interstitialId: config.admob.interstitialId || '',
-                rewardedId: config.admob.rewardedId || ''
-              };
-              const adInitSuccess = await adService.initialize(
-                adConfig,
-                config.security.adBlockDetection,
-                handleAdBlockDetection
-              );
-            }
+            // AdService now fetches its own configuration from endpoints
+            await adService.initialize();
           }
-        } catch (adError) {}
+        } catch (adError) {
+          // AdService initialization failed
+        }
       }
     } catch (error) {}
   };

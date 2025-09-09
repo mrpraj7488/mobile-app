@@ -30,7 +30,6 @@ class InAppRatingService {
       const hasRated = await AsyncStorage.getItem(this.RATING_STORAGE_KEY);
       return hasRated === 'true';
     } catch (error) {
-      console.error('Error checking rating status:', error);
       return false;
     }
   }
@@ -42,7 +41,6 @@ class InAppRatingService {
     try {
       return await StoreReview.isAvailableAsync();
     } catch (error) {
-      console.error('Error checking in-app review availability:', error);
       return false;
     }
   }
@@ -94,9 +92,6 @@ class InAppRatingService {
       };
 
     } catch (error) {
-      console.error('Error requesting in-app review:', error);
-      
-      // Fallback to store URL on error
       return await this.openStoreForRating(userId);
     }
   }
@@ -147,11 +142,10 @@ class InAppRatingService {
       };
 
     } catch (error) {
-      console.error('Error opening store for rating:', error);
       return {
         success: false,
         rewarded: false,
-        message: 'Unable to open rating dialog. Please try again later.'
+        message: 'Unable to open store for rating'
       };
     }
   }
@@ -163,7 +157,7 @@ class InAppRatingService {
     try {
       await AsyncStorage.setItem(this.RATING_STORAGE_KEY, 'true');
     } catch (error) {
-      console.error('Error marking user as rated:', error);
+      // Silent error
     }
   }
 
@@ -209,7 +203,6 @@ class InAppRatingService {
       return { success: true };
 
     } catch (error) {
-      console.error('Error awarding rating coins:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -224,7 +217,7 @@ class InAppRatingService {
     try {
       await AsyncStorage.removeItem(this.RATING_STORAGE_KEY);
     } catch (error) {
-      console.error('Error resetting rating status:', error);
+      // Silent error
     }
   }
 

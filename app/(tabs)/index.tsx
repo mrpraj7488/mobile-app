@@ -15,6 +15,7 @@ import GlobalHeader from '@/components/GlobalHeader';
 import { useVideoStore } from '../../store/videoStore';
 import { useRealtimeVideoUpdates } from '../../hooks/useRealtimeVideoUpdates';
 import { useNetwork, withNetworkCheck } from '../../services/NetworkHandler';
+import VideoAdTracker from '../../services/VideoAdTracker';
 
 // Responsive helpers
 const { width: screenWidth } = Dimensions.get('window');
@@ -131,7 +132,7 @@ export default function ViewTab() {
       try {
         await fetchVideos(user.id);
       } catch (error) {
-        console.error('Failed to initialize videos:', error);
+        // Failed to initialize videos
       } finally {
         setIsInitializing(false);
       }
@@ -420,6 +421,9 @@ export default function ViewTab() {
     
     // Process rewards in background without blocking UI
     try {
+      // Track video watch for interstitial ads
+      VideoAdTracker.getInstance().onVideoWatched();
+      
       // Background reward processing
       const rewardPromise = watchVideoAndEarnCoins(user.id, currentVideo.video_id, watchTimerRef.current);
       const profilePromise = refreshProfile();
@@ -443,7 +447,6 @@ export default function ViewTab() {
       
     } catch (error) {
       // Silent background error handling
-      console.log('Background completion processing error:', error);
     }
   }, [currentVideo, user, refreshProfile, showError, moveToNextVideo, stopTimer]);
 
@@ -457,6 +460,9 @@ export default function ViewTab() {
     
     // Process reward in background without blocking UI
     try {
+      // Track video watch for interstitial ads
+      VideoAdTracker.getInstance().onVideoWatched();
+      
       // Background coin processing
       const rewardPromise = watchVideoAndEarnCoins(user.id, currentVideo.video_id, watchTimerRef.current, true);
       
@@ -484,8 +490,7 @@ export default function ViewTab() {
       });
       
     } catch (error) {
-      // Silent background error handling - don't block UI
-      console.log('Background reward processing error:', error);
+      // Silent background error handling
     }
   }, [currentVideo, user, videoQueue.length, moveToNextVideo, refreshQueue, showError, refreshProfile]);
 
@@ -501,7 +506,7 @@ export default function ViewTab() {
     
     // Background queue refresh if needed
     if (videoQueue.length === 0 && user) {
-      refreshQueue(user.id).catch(console.log);
+      refreshQueue(user.id).catch(() => {});
     }
   }, [processRewardAndSkip, moveToNextVideo, videoQueue.length, refreshQueue, user]);
 

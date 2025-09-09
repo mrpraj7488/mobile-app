@@ -17,7 +17,7 @@ export default function ConfigLoader({ children }: ConfigLoaderProps) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setForceRender(true);
-    }, 1000); // Reduced to 1s for faster loading
+    }, 500); // Reduced to 500ms for even faster loading
 
     return () => clearTimeout(timeout);
   }, []);

@@ -10,7 +10,8 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '@/lib/supabase';
-import AdService from '@/services/AdService';
+import AdService from '../../services/AdService';
+import AdFreeService from '@/services/AdFreeService';
 import InAppRatingService from '@/services/InAppRatingService';
 import * as Haptics from 'expo-haptics';
 import { useNetwork } from '../../services/NetworkHandler';
@@ -43,6 +44,7 @@ export default function MoreTab() {
   const [freeCoinsAvailable, setFreeCoinsAvailable] = useState(true);
   const [timeRemaining, setTimeRemaining] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isAdFreeActive, setIsAdFreeActive] = useState(false);
 
   // Animation values for free coins card
   const shimmerAnimation = useSharedValue(0);
@@ -95,23 +97,55 @@ export default function MoreTab() {
     );
   };
 
+  const checkAdFreeStatus = async () => {
+    try {
+      const adFreeService = AdFreeService.getInstance();
+      const isActive = await adFreeService.checkAdFreeStatus();
+      setIsAdFreeActive(isActive);
+    } catch (error) {
+      setIsAdFreeActive(false);
+    }
+  };
+
   const checkFreeCoinsAvailability = async () => {
     try {
-      const lastClaimTime = await AsyncStorage.getItem('lastFreeCoinsClaimTime');
-      if (lastClaimTime) {
-        const lastClaim = new Date(lastClaimTime);
-        const now = new Date();
-        const timeDiff = now.getTime() - lastClaim.getTime();
-        const twoHoursInMs = 2 * 60 * 60 * 1000;
+      if (user) {
+        const supabase = getSupabase();
+        const { data: canClaim } = await supabase.rpc('can_claim_free_coins', {
+          p_user_id: user.id
+        });
         
-        if (timeDiff < twoHoursInMs) {
-          setFreeCoinsAvailable(false);
-          const remainingMs = twoHoursInMs - timeDiff;
-          const hours = Math.floor(remainingMs / (60 * 60 * 1000));
-          const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-          setTimeRemaining(`${hours}h ${minutes}m`);
+        setFreeCoinsAvailable(canClaim || false);
+        
+        // If can't claim, check when they can claim again and set a timer
+        if (!canClaim) {
+          const { data: lastSession } = await supabase
+            .from('user_ad_sessions')
+            .select('start_time')
+            .eq('user_id', user.id)
+            .eq('session_type', 'free_coins')
+            .order('start_time', { ascending: false })
+            .limit(1)
+            .single();
+            
+          if (lastSession) {
+            const lastClaimTime = new Date(lastSession.start_time).getTime();
+            const twoHoursInMs = 2 * 60 * 60 * 1000;
+            const timeDiff = Date.now() - lastClaimTime;
+            const remainingTime = twoHoursInMs - timeDiff;
+            
+            if (remainingTime > 0) {
+              const hours = Math.floor(remainingTime / (60 * 60 * 1000));
+              const minutes = Math.floor((remainingTime % (60 * 60 * 1000)) / (60 * 1000));
+              setTimeRemaining(`${hours}h ${minutes}m`);
+              
+              setTimeout(() => {
+                setFreeCoinsAvailable(true);
+                setTimeRemaining('');
+              }, remainingTime);
+            }
+          }
         } else {
-          setFreeCoinsAvailable(true);
           setTimeRemaining('');
         }
       } else {
@@ -119,13 +153,32 @@ export default function MoreTab() {
         setTimeRemaining('');
       }
     } catch (error) {
-      
       setFreeCoinsAvailable(true);
+      setTimeRemaining('');
     }
   };
 
   const handleFreeCoinsClick = async () => {
     if (!freeCoinsAvailable || loading) return;
+
+    // Check cooldown first
+    if (user) {
+      try {
+        const supabase = getSupabase();
+        const { data: canClaim } = await supabase.rpc('can_claim_free_coins', {
+          p_user_id: user.id
+        });
+        
+        if (!canClaim) {
+          showInfo('Cooldown Active', 'You can claim free coins again in 2 hours. Please wait before trying again.');
+          return;
+        }
+      } catch (error) {
+        // Continue if cooldown check fails
+      }
+    }
+
+    // Ad-free sessions do not affect free coin rewards
 
     // Check if ads are enabled in runtime config
     if (!config?.features.adsEnabled) {
@@ -179,44 +232,69 @@ export default function MoreTab() {
 
   const handleAdReward = async () => {
     try {
-      // Use AdService to show rewarded ad
-      const adService = AdService.getInstance();
-      const adResult = await adService.showRewardedAd();
+      // Ensure user ID is available in AsyncStorage for reward validation
+      if (user?.id) {
+        await AsyncStorage.setItem('user_id', user.id);
+      }
       
-      if (adResult.success) {
+      // Use AdService to show rewarded ad - force ad to show even during ad-free sessions
+      const adService = AdService.getInstance();
+      await adService.showRewardedAd(async (reward: { amount: number; type: string }) => {
         try {
-          // Award coins to user
-          if (user) {
+          // Only award coins if user actually watched an ad (not ad-free reward)
+          if (user && reward.type !== 'ad_free') {
+            const coinAmount = 100; // Always award 100 coins for free coin ads
             const supabase = getSupabase();
-            const { error } = await supabase
-              .from('transactions')
-              .insert({
-                transaction_id: `ad_${Date.now()}_${user.id.substring(0, 8)}`,
-                user_id: user.id,
-                amount: adResult.reward || 100,
-                transaction_type: 'ad_reward',
-                description: 'Free coins earned by watching 30-second ad',
-                metadata: {
-                  ad_duration: 30,
-                  platform: Platform.OS
-                }
-              });
+            
+            // Update user's coin balance first
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ 
+                coins: (profile?.coins || 0) + coinAmount,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
 
-            if (!error) {
-              // Update user's coin balance
-              await supabase
-                .from('profiles')
-                .update({ 
-                  coins: (profile?.coins || 0) + (adResult.reward || 100)
-                })
-                .eq('id', user.id);
+            if (!updateError) {
+              // Insert transaction record
+              const { error } = await supabase
+                .from('transactions')
+                .insert({
+                  transaction_id: `ad_${Date.now()}_${user.id.substring(0, 8)}`,
+                  user_id: user.id,
+                  amount: coinAmount,
+                  transaction_type: 'ad_reward',
+                  description: 'Free coins earned by watching 30-second ad',
+                  metadata: {
+                    ad_duration: 30,
+                    platform: Platform.OS,
+                    reward_type: reward.type,
+                    admob_amount: reward.amount
+                  }
+                });
 
-              // Record claim time
-              await AsyncStorage.setItem('lastFreeCoinsClaimTime', new Date().toISOString());
-              
-              // Refresh profile and check availability
+              // Log free coin reward in database
+              try {
+                await supabase.rpc('log_free_coin_reward', {
+                  p_user_id: user.id,
+                  p_coins_earned: coinAmount
+                });
+              } catch (logError) {
+                // Logging failed but reward was given
+              }
+
+              // Update local profile state
               await refreshProfile();
-              await checkFreeCoinsAvailability();
+
+              // Disable free coins button for 2 hours and update timer
+              setFreeCoinsAvailable(false);
+              setTimeRemaining('2h 0m');
+              
+              // Set timer to re-enable after 2 hours
+              setTimeout(() => {
+                setFreeCoinsAvailable(true);
+                setTimeRemaining('');
+              }, 2 * 60 * 60 * 1000); // 2 hours in milliseconds
 
               if (Platform.OS !== 'web') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -224,28 +302,29 @@ export default function MoreTab() {
 
               showSuccess(
                 '🎉 Coins Earned!',
-                `${adResult.reward || 100} coins have been added to your account! Come back in 2 hours for more free coins.`
+                `${coinAmount} coins have been added to your account! Come back in 2 hours for more free coins.`
               );
             } else {
-              throw new Error('Failed to award coins');
+              throw new Error('Failed to update coin balance');
             }
+          } else if (reward.type === 'ad_free') {
+            // User has ad-free session, no coins awarded
+            showInfo(
+              '🛡️ Ad Required for Coins',
+              'Free coins require watching ads. This feature works independently of ad-free sessions.'
+            );
           }
         } catch (error) {
-
           // Check for network errors and show appropriate alert
           const errorMessage = error instanceof Error ? error.message : String(error);
           if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
-            
             showNetworkAlert();
           } else {
             showError('Error', 'Failed to award coins. Please try again.');
           }
         }
-      } else {
-        showError('Ad Failed', 'Unable to show ad. Please try again later.');
-      }
+      }, true, 'coins'); // Force show ad even during ad-free sessions, specify coin reward
     } catch (error) {
-
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch') || errorMessage.includes('TypeError')) {
@@ -303,7 +382,6 @@ export default function MoreTab() {
         showInfo('Rating Status', result.message);
       }
     } catch (error) {
-      console.error('Rating error:', error);
       showError(
         'Rating Failed',
         'Unable to open rating dialog. Please try rating VidGro directly in the app store.'
@@ -321,135 +399,135 @@ export default function MoreTab() {
     }
   };
 
-  // Animated styles
-  const shimmerAnimatedStyle = useAnimatedStyle(() => {
-    const translateX = interpolate(
-      shimmerAnimation.value,
-      [0, 1],
-      [-screenWidth, screenWidth]
-    );
-    return {
-      transform: [{ translateX }],
-    };
-  });
+// Animated styles
+const shimmerAnimatedStyle = useAnimatedStyle(() => {
+  const translateX = interpolate(
+    shimmerAnimation.value,
+    [0, 1],
+    [-screenWidth, screenWidth]
+  );
+  return {
+    transform: [{ translateX }],
+  };
+});
 
-  const pulseAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseAnimation.value }],
-  }));
+const pulseAnimatedStyle = useAnimatedStyle(() => ({
+  transform: [{ scale: pulseAnimation.value }],
+}));
 
-  const sparkleAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${sparkleRotation.value}deg` }],
-  }));
+const sparkleAnimatedStyle = useAnimatedStyle(() => ({
+  transform: [{ rotate: `${sparkleRotation.value}deg` }],
+}));
 
-  const coinBounceStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: coinBounce.value }],
-  }));
+const coinBounceStyle = useAnimatedStyle(() => ({
+  transform: [{ scale: coinBounce.value }],
+}));
 
-  const glowAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }));
+const glowAnimatedStyle = useAnimatedStyle(() => ({
+  opacity: glowOpacity.value,
+}));
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlobalHeader 
-        title="More" 
-        showCoinDisplay={true}
-        menuVisible={menuVisible} 
-        setMenuVisible={setMenuVisible} 
-      />
-      
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, isTablet && styles.scrollContentTablet]}
-      >
-        {/* Enhanced Free Coins Section */}
-        <View style={[styles.freeCoinsSection, isTablet && styles.freeCoinsSectionTablet]}>
-          <Text style={[
-            styles.freeCoinsSectionTitle, 
+return (
+  <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <GlobalHeader 
+      title="More" 
+      showCoinDisplay={true}
+      menuVisible={menuVisible} 
+      setMenuVisible={setMenuVisible} 
+    />
+    
+    <ScrollView 
+      style={styles.content} 
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[styles.scrollContent, isTablet && styles.scrollContentTablet]}
+    >
+      {/* Enhanced Free Coins Section */}
+      <View style={[styles.freeCoinsSection, isTablet && styles.freeCoinsSectionTablet]}>
+        <Text style={[
+          styles.freeCoinsSectionTitle, 
+          { 
+            color: colors.text,
+            fontSize: isSmallScreen ? 16 : isTablet ? 20 : 18,        
+          }
+        ]}>
+          🎁 Free Coins Available
+        </Text>
+        
+        <AnimatedTouchableOpacity
+          style={[
+            styles.freeCoinsCard,
             { 
-              color: colors.text,
-              fontSize: isSmallScreen ? 16 : isTablet ? 20 : 18,        
+              backgroundColor: colors.surface,
+              shadowColor: colors.shadowColor,
+              borderColor: freeCoinsAvailable ? colors.success : colors.border,
+              opacity: freeCoinsAvailable ? 1 : 0.8
+            },
+            !freeCoinsAvailable && styles.freeCoinsCardDisabled,
+            isTablet && styles.freeCoinsCardTablet,
+            pulseAnimatedStyle
+          ]}
+          onPress={handleFreeCoinsClick}
+          disabled={!freeCoinsAvailable || loading}
+          activeOpacity={0.9}
+        >
+          {/* Shimmer effect for available state */}
+          {freeCoinsAvailable && (
+            <Animated.View style={[styles.shimmerOverlay, shimmerAnimatedStyle]}>
+              <LinearGradient
+                colors={['transparent', 'rgba(255, 215, 0, 0.4)', 'transparent']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.shimmerGradient}
+              />
+            </Animated.View>
+          )}
+
+          {/* Glow effect */}
+          {freeCoinsAvailable && (
+            <Animated.View style={[styles.glowEffect, glowAnimatedStyle]} />
+          )}
+
+          <LinearGradient
+            colors={
+              freeCoinsAvailable
+                ? isDark 
+                  ? ['rgba(16, 185, 129, 0.25)', 'rgba(16, 185, 129, 0.1)', 'rgba(255, 215, 0, 0.15)']
+                  : ['rgba(16, 185, 129, 0.2)', 'rgba(16, 185, 129, 0.1)', 'rgba(255, 215, 0, 0.2)']
+                : isDark
+                  ? ['rgba(107, 114, 128, 0.15)', 'rgba(107, 114, 128, 0.05)']
+                  : ['rgba(156, 163, 175, 0.15)', 'rgba(156, 163, 175, 0.05)']
             }
-          ]}>
-            🎁 Free Coins Available
-          </Text>
-          
-          <AnimatedTouchableOpacity
-            style={[
-              styles.freeCoinsCard,
-              { 
-                backgroundColor: colors.surface,
-                shadowColor: colors.shadowColor,
-                borderColor: freeCoinsAvailable ? colors.success : colors.border,
-                opacity: freeCoinsAvailable ? 1 : 0.8
-              },
-              !freeCoinsAvailable && styles.freeCoinsCardDisabled,
-              isTablet && styles.freeCoinsCardTablet,
-              pulseAnimatedStyle
-            ]}
-            onPress={handleFreeCoinsClick}
-            disabled={!freeCoinsAvailable || loading}
-            activeOpacity={0.9}
+            style={styles.freeCoinsGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            {/* Shimmer effect for available state */}
-            {freeCoinsAvailable && (
-              <Animated.View style={[styles.shimmerOverlay, shimmerAnimatedStyle]}>
-                <LinearGradient
-                  colors={['transparent', 'rgba(255, 215, 0, 0.4)', 'transparent']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.shimmerGradient}
-                />
-              </Animated.View>
-            )}
-
-            {/* Glow effect */}
-            {freeCoinsAvailable && (
-              <Animated.View style={[styles.glowEffect, glowAnimatedStyle]} />
-            )}
-
-            <LinearGradient
-              colors={
-                freeCoinsAvailable
-                  ? isDark 
-                    ? ['rgba(16, 185, 129, 0.25)', 'rgba(16, 185, 129, 0.1)', 'rgba(255, 215, 0, 0.15)']
-                    : ['rgba(16, 185, 129, 0.2)', 'rgba(16, 185, 129, 0.1)', 'rgba(255, 215, 0, 0.2)']
-                  : isDark
-                    ? ['rgba(107, 114, 128, 0.15)', 'rgba(107, 114, 128, 0.05)']
-                    : ['rgba(156, 163, 175, 0.15)', 'rgba(156, 163, 175, 0.05)']
-              }
-              style={styles.freeCoinsGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              {/* Horizontal Layout for Small Screens */}
-              <View style={styles.freeCoinsHorizontalLayout}>
-                {/* Left Section - Icon and Status */}
-                <View style={styles.freeCoinsLeftSection}>
-                  <View style={[
-                    styles.freeCoinsIcon,
-                    { 
-                      backgroundColor: freeCoinsAvailable 
-                        ? (isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)')
-                        : (isDark ? 'rgba(107, 114, 128, 0.2)' : 'rgba(156, 163, 175, 0.2)')
-                    }
-                  ]}>
-                    {freeCoinsAvailable ? (
-                      <View style={styles.iconContainer}>
-                        <Gift size={isSmallScreen ? 20 : 24} color={colors.success} />
-                        <Animated.View style={[styles.sparkleIcon, sparkleAnimatedStyle]}>
-                          <Sparkles size={isSmallScreen ? 8 : 10} color="#FFD700" />
-                        </Animated.View>
-                      </View>
-                    ) : (
-                      <Clock size={isSmallScreen ? 20 : 24} color={colors.textSecondary} />
-                    )}
-                  </View>
+            {/* Horizontal Layout for Small Screens */}
+            <View style={styles.freeCoinsHorizontalLayout}>
+              {/* Left Section - Icon and Status */}
+              <View style={styles.freeCoinsLeftSection}>
+                <View style={[
+                  styles.freeCoinsIcon,
+                  { 
+                    backgroundColor: freeCoinsAvailable 
+                      ? (isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)')
+                      : (isDark ? 'rgba(107, 114, 128, 0.2)' : 'rgba(156, 163, 175, 0.2)')
+                  }
+                ]}>
+                  {freeCoinsAvailable ? (
+                    <View style={styles.iconContainer}>
+                      <Gift size={isSmallScreen ? 20 : 24} color={colors.success} />
+                      <Animated.View style={[styles.sparkleIcon, sparkleAnimatedStyle]}>
+                        <Sparkles size={isSmallScreen ? 8 : 10} color="#FFD700" />
+                      </Animated.View>
+                    </View>
+                  ) : (
+                    <Clock size={isSmallScreen ? 20 : 24} color={colors.textSecondary} />
+                  )}
                 </View>
+              </View>
 
-                {/* Center Section - Content */}
-                <View style={styles.freeCoinsCenterSection}>
+                 {/* Center Section - Content */}
+                 <View style={styles.freeCoinsCenterSection}>
                   <Text style={[
                     styles.freeCoinsTitle,
                     { 
@@ -459,22 +537,20 @@ export default function MoreTab() {
                   ]}>
                     {freeCoinsAvailable ? '🎬 Watch & Earn' : '⏰ Cooldown'}
                   </Text>
-                  <Text style={[
-                    styles.freeCoinsSubtitle,
-                    { 
-                      color: freeCoinsAvailable ? colors.textSecondary : colors.textSecondary,
-                      fontSize: isSmallScreen ? 11 : 12
-                    }
-                  ]}>
-                    {freeCoinsAvailable 
-                      ? '30s ad = 100 coins' 
-                      : `Next in ${timeRemaining}`
-                    }
-                  </Text>
+                  {freeCoinsAvailable && (
+                    <Text style={[
+                      styles.freeCoinsSubtitle,
+                      { 
+                        color: colors.textSecondary,
+                        fontSize: isSmallScreen ? 11 : 12
+                      }
+                    ]}>
+                      30s ad = 100 coins
+                    </Text>
+                  )}
                 </View>
-
-                {/* Right Section - Coin Badge */}
-                <Animated.View style={[styles.freeCoinsRightSection, coinBounceStyle]}>
+{/* Right Section - Coin Badge */}
+<Animated.View style={[styles.freeCoinsRightSection, coinBounceStyle]}>
                   <View style={[
                     styles.coinsBadge,
                     { 
@@ -535,7 +611,7 @@ export default function MoreTab() {
           </AnimatedTouchableOpacity>
         </View>
 
-        {/* Main Menu Grid */}
+         {/* Main Menu Grid */}
         <View style={[styles.menuGrid, isTablet && styles.menuGridTablet]}>
           {menuItems.map((item, index) => (
             <TouchableOpacity

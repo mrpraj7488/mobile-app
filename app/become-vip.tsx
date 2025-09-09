@@ -115,9 +115,6 @@ export default function BecomeVIPScreen() {
     // Initialize purchase service
     PurchaseService.initialize().then(success => {
       setIapAvailable(success);
-      if (!success) {
-        console.warn('Failed to initialize VIP purchases');
-      }
     });
 
 
@@ -288,7 +285,6 @@ export default function BecomeVIPScreen() {
       }
       
     } catch (error: any) {
-      console.error('VIP subscription error:', error);
 
       // Provide detailed user-friendly error messages
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -362,12 +358,10 @@ export default function BecomeVIPScreen() {
         });
       
       if (transactionError) {
-        console.error('Failed to record VIP transaction:', transactionError);
-        // Don't fail the entire process for transaction logging issues
+        // Transaction logging failed but VIP was activated
       }
       
     } catch (error) {
-      console.error('VIP transaction recording error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       if (errorMessage.includes('Network request failed') || errorMessage.includes('fetch')) {
@@ -399,11 +393,11 @@ export default function BecomeVIPScreen() {
           .eq('id', profile.id);
         
         if (updateError) {
-          console.error('Failed to activate VIP status:', updateError);
           showError(
             '⚠️ VIP Activation Issue', 
             'Your payment was successful but there was an issue activating VIP status. Please contact support with your purchase details for immediate assistance.'
           );
+        } else {
           return;
         }
         
@@ -428,7 +422,6 @@ export default function BecomeVIPScreen() {
         );
       }
     } catch (error) {
-      console.error('VIP activation error:', error);
 
       // Check for network errors and show appropriate alert
       const errorMessage = error instanceof Error ? error.message : String(error);

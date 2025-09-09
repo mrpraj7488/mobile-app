@@ -6,13 +6,10 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "lint": "eslint . --ext .ts,.tsx",
-    "type-check": "tsc --noEmit",
     "clean": "npx expo start --clear",
     "build:android": "cd android && ./gradlew assembleRelease",
-    "build:android:debug": "cd android && ./gradlew assembleDebug"
+    "build:android:debug": "cd android && ./gradlew assembleDebug",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -47,6 +44,7 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
     "react-native-gesture-handler": "~2.24.0",
+    "react-native-google-mobile-ads": "^15.7.0",
     "react-native-iap": "^13.0.4",
     "react-native-in-app-review": "^4.3.5",
     "react-native-reanimated": "~3.17.4",
@@ -55,8 +53,7 @@
     "react-native-svg": "15.11.2",
     "react-native-svg-transformer": "^1.5.1",
     "react-native-url-polyfill": "^2.0.0",
-    "react-native-web": "^0.20.0",
-    "react-native-webview": "^13.13.5",
+    "react-native-webview": "13.13.5",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

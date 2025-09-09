@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, startTransition } from 'react';
 import { getSupabase, getUserProfile } from '../lib/supabase';
 import { useConfig } from './ConfigContext';
+import AdFreeService from '../services/AdFreeService';
 
 // Helper function to generate referral code
 const generateReferralCode = (): string => {
@@ -87,9 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             const profileData = await getUserProfile(session.user.id);
             if (profileData) {
-              setUser(session.user);
-              setProfile(profileData);
-              setIsCreatingProfile(false);
+              startTransition(() => {
+                setUser(session.user);
+                setProfile(profileData);
+                setIsCreatingProfile(false);
+              });
+              
+              // Initialize AdFreeService with user
+              const adFreeService = AdFreeService.getInstance();
+              adFreeService.setUser(session.user.id);
             } else {
               // Try RLS bypass fallback before forcing logout
               try {
@@ -98,22 +105,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 });
                 
                 if (fallbackProfile && fallbackProfile.length > 0) {
-                  setUser(session.user);
-                  setProfile(fallbackProfile[0]);
-                  setIsCreatingProfile(false);
+                  startTransition(() => {
+                    setUser(session.user);
+                    setProfile(fallbackProfile[0]);
+                    setIsCreatingProfile(false);
+                  });
+                  
+                  // Initialize AdFreeService with user
+                  const adFreeService = AdFreeService.getInstance();
+                  adFreeService.setUser(session.user.id);
                 } else {
                   // Only force logout if we're not creating a profile AND no fallback found
                   if (!isCreatingProfile) {
                     await forceSignOut('No profile found');
                   } else {
-                    setUser(session.user);
+                    startTransition(() => {
+                      setUser(session.user);
+                    });
                   }
                 }
               } catch (fallbackError) {
                 if (!isCreatingProfile) {
                   await forceSignOut('Profile loading error');
                 } else {
-                  setUser(session.user);
+                  startTransition(() => {
+                    setUser(session.user);
+                  });
                 }
               }
             }
@@ -125,29 +142,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
               
               if (fallbackProfile && fallbackProfile.length > 0) {
-                setUser(session.user);
-                setProfile(fallbackProfile[0]);
-                setIsCreatingProfile(false);
+                startTransition(() => {
+                  setUser(session.user);
+                  setProfile(fallbackProfile[0]);
+                  setIsCreatingProfile(false);
+                });
               } else {
                 if (!isCreatingProfile) {
                   await forceSignOut('Profile loading error');
                 } else {
-                  setUser(session.user);
+                  startTransition(() => {
+                    setUser(session.user);
+                  });
                 }
               }
             } catch (fallbackError) {
               if (!isCreatingProfile) {
                 await forceSignOut('Profile loading error');
               } else {
-                setUser(session.user);
+                startTransition(() => {
+                  setUser(session.user);
+                });
               }
             }
           }
         } else {
-          setUser(null);
-          setProfile(null);
+          startTransition(() => {
+            setUser(null);
+            setProfile(null);
+          });
         }
-        setLoading(false);
+        startTransition(() => {
+          setLoading(false);
+        });
 
         // Listen for auth changes
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
@@ -436,6 +463,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async (): Promise<void> => {
     try {
+      // Clear AdFreeService user data
+      const adFreeService = AdFreeService.getInstance();
+      await adFreeService.logout();
+      
       // Import GoogleAuthService dynamically to avoid circular imports
       const GoogleAuthService = (await import('@/services/GoogleAuthService')).default;
       const googleAuthService = new GoogleAuthService();
@@ -462,6 +493,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Force clear state even if sign out fails
       setUser(null);
       setProfile(null);
+      
+      // Still clear AdFreeService on error
+      try {
+        const adFreeService = AdFreeService.getInstance();
+        await adFreeService.logout();
+      } catch {}
     }
   };
 

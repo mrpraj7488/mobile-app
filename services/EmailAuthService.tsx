@@ -88,7 +88,6 @@ class EmailAuthService {
 
       return { success: true };
     } catch (error) {
-      console.error('Email sign up error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to create account' 
@@ -134,7 +133,6 @@ class EmailAuthService {
 
       return { success: true };
     } catch (error) {
-      console.error('Email sign in error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to sign in' 
@@ -167,7 +165,6 @@ class EmailAuthService {
         error: 'Password reset email sent. Please check your inbox.'
       };
     } catch (error) {
-      console.error('Password reset error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to send reset email' 
@@ -201,7 +198,6 @@ class EmailAuthService {
         error: 'Verification email sent. Please check your inbox.'
       };
     } catch (error) {
-      console.error('Resend verification error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to resend verification email' 

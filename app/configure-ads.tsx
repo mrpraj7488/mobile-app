@@ -19,6 +19,9 @@ import { ShieldOff, Clock, Play } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNetwork } from '@/services/NetworkHandler';
 import ScreenHeader from '@/components/ScreenHeader';
+import AdService from '../services/AdService';
+import AdFreeService from '../services/AdFreeService';
+import { getSupabase } from '../lib/supabase';
 
 export default function ConfigureAdsScreen() {
   const { user, profile } = useAuth();
@@ -54,14 +57,29 @@ export default function ConfigureAdsScreen() {
   // Start countdown timer when ad-free session is active
   useEffect(() => {
     if (isAdFreeActive && timeRemaining > 0) {
-      timerRef.current = setInterval(() => {
+      timerRef.current = setInterval(async () => {
         setTimeRemaining(prev => {
-          if (prev <= 1) {
-            // Timer expired
-            endAdFreeSession();
+          if (prev <= 1000) { // Check for 1 second in milliseconds
+            // Timer expired - delete session from database
+            (async () => {
+              try {
+                const adFreeService = AdFreeService.getInstance();
+                await adFreeService.endAdFreeSession();
+                
+                setIsAdFreeActive(false);
+                setAdFreeHours(0);
+                
+                showSuccess(
+                  'Ad-Free Session Expired',
+                  'Your ad-free time has ended. You can start a new session anytime!'
+                );
+              } catch (error) {
+                // Error ending session
+              }
+            })();
             return 0;
           }
-          return prev - 1;
+          return prev - 1000; // Subtract 1 second in milliseconds
         });
       }, 1000);
     } else if (timerRef.current) {
@@ -74,43 +92,60 @@ export default function ConfigureAdsScreen() {
         clearInterval(timerRef.current);
       }
     };
-  }, [isAdFreeActive]);
+  }, [isAdFreeActive, timeRemaining]);
 
   const loadAdFreeSession = async () => {
     try {
-      const sessionData = await AsyncStorage.getItem('adFreeSession');
-      if (sessionData) {
-        const { endTime, hours } = JSON.parse(sessionData);
-        const now = Date.now();
-        const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      const adFreeService = AdFreeService.getInstance();
+      const isActive = await adFreeService.checkAdFreeStatus();
+      
+      if (isActive) {
+        const remaining = adFreeService.getTimeRemaining();
+        setIsAdFreeActive(true);
+        setTimeRemaining(remaining);
         
-        if (remaining > 0) {
-          setIsAdFreeActive(true);
-          setTimeRemaining(remaining);
+        // Try to get hours from stored session data
+        const sessionData = await AsyncStorage.getItem('adFreeSession');
+        if (sessionData) {
+          const { hours } = JSON.parse(sessionData);
           setAdFreeHours(hours);
-        } else {
-          // Session expired, clean up
-          await AsyncStorage.removeItem('adFreeSession');
         }
+      } else {
+        setIsAdFreeActive(false);
+        setTimeRemaining(0);
+        setAdFreeHours(0);
       }
     } catch (error) {
-      
+      // Error loading ad-free session
     }
   };
 
-  const saveAdFreeSession = async (hours: number) => {
+  const saveAdFreeSession = async (hours: number, adsWatched: number) => {
     try {
-      const endTime = Date.now() + (hours * 60 * 60 * 1000);
-      const sessionData = { endTime, hours };
-      await AsyncStorage.setItem('adFreeSession', JSON.stringify(sessionData));
-    } catch (error) {
+      const adFreeService = AdFreeService.getInstance();
       
+      // Ensure AdFreeService has the current user ID
+      if (user?.id) {
+        await adFreeService.setUser(user.id);
+      } else {
+        throw new Error('No user ID available for ad-free session');
+      }
+      
+      const result = await adFreeService.startAdFreeSession(hours, adsWatched);
+      
+      if (!result) {
+        throw new Error('Failed to start ad-free session');
+      }
+    } catch (error) {
+      throw error;
     }
   };
 
   const endAdFreeSession = async () => {
     try {
-      await AsyncStorage.removeItem('adFreeSession');
+      const adFreeService = AdFreeService.getInstance();
+      await adFreeService.endAdFreeSession();
+      
       setIsAdFreeActive(false);
       setTimeRemaining(0);
       setAdFreeHours(0);
@@ -128,14 +163,15 @@ export default function ConfigureAdsScreen() {
         router.back();
       }, 2000);
     } catch (error) {
-      
+      // Error ending ad-free session
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+  const formatTime = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
     
     if (hours > 0) {
       return `${hours}h ${minutes}m ${secs}s`;
@@ -157,25 +193,73 @@ export default function ConfigureAdsScreen() {
       `You need to watch ${option.watchAds} ads to get ${option.hours} hours of ad-free experience.`
     );
     
-    // Proceed with ad watching logic
     try {
-        // Simulate ad watching
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        setAdFreeHours(option.hours);
-        setIsAdFreeActive(true);
-        setTimeRemaining(option.hours * 60 * 60); // Convert hours to seconds
-        await saveAdFreeSession(option.hours);
-        
-        showSuccess(
-          'Ad-Free Session Started!',
-          `You now have ${option.hours} hours of ad-free experience. Timer is now running!`
-        );
-      } catch (error) {
-        showError('Failed to start ad-free session', 'Please try again.');
-      } finally {
-        setLoading(false);
+      // Initialize AdService
+      const adService = AdService.getInstance();
+      await adService.initialize();
+      
+      // Ensure user ID is available in AsyncStorage for reward validation
+      if (user?.id) {
+        await AsyncStorage.setItem('user_id', user.id);
       }
+      
+      let adsWatched = 0;
+      
+      // Preload next ad while showing current one for smoother experience
+      await adService.preloadRewardedAd();
+      
+      // Watch the required number of ads
+      for (let i = 0; i < option.watchAds; i++) {
+        if (i === 0) {
+          showInfo(
+            `Ad ${i + 1} of ${option.watchAds}`,
+            `Watch this ad to progress towards your ${option.hours} hour ad-free experience.`
+          );
+        }
+        
+        try {
+          await new Promise<void>((resolve, reject) => {
+            adService.showRewardedAd((reward) => {
+              adsWatched++;
+              
+              // Preload next ad immediately while user dismisses current one
+              if (i < option.watchAds - 1) {
+                adService.preloadRewardedAd();
+                showInfo(
+                  `Ad ${i + 2} of ${option.watchAds}`,
+                  `Watch this ad to progress towards your ${option.hours} hour ad-free experience.`
+                );
+              }
+              
+              // No delay needed, proceed immediately
+              resolve();
+            }, false, 'ad_free').catch(reject);
+          });
+        } catch (error) {
+          showError('Ad Failed', 'Failed to load ad. Please try again.');
+          return;
+        }
+      }
+      
+      // Start ad-free session immediately after watching all ads
+      setAdFreeHours(option.hours);
+      setIsAdFreeActive(true);
+      setTimeRemaining(option.hours * 60 * 60 * 1000);
+      
+      showSuccess(
+        '🎉 Ad-Free Session Started!',
+        `Congratulations! You watched all ${adsWatched} ads and now have ${option.hours} hours of completely ad-free experience across the entire app!`
+      );
+      
+      // Save to database in background (don't block UI)
+      saveAdFreeSession(option.hours, adsWatched).catch(() => {
+        // If save fails, still keep the session active locally
+      });
+    } catch (error) {
+      showError('Failed to start ad-free session', 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -213,17 +297,26 @@ export default function ConfigureAdsScreen() {
             
             <TouchableOpacity
               style={[styles.endSessionButton, { backgroundColor: colors.error }]}
-              onPress={() => {
-                showInfo(
-                  'End Ad-Free Session',
-                  'Your ad-free session has been ended early.'
-                );
-                setIsAdFreeActive(false);
-                setAdFreeHours(0);
-                setTimeRemaining(0);
-                clearInterval(timerRef.current!);
-                timerRef.current = null;
-                AsyncStorage.removeItem('adFreeSession');
+              onPress={async () => {
+                try {
+                  // Properly end the ad-free session using AdFreeService
+                  const adFreeService = AdFreeService.getInstance();
+                  await adFreeService.endAdFreeSession();
+                  
+                  // Update local state
+                  setIsAdFreeActive(false);
+                  setAdFreeHours(0);
+                  setTimeRemaining(0);
+                  clearInterval(timerRef.current!);
+                  timerRef.current = null;
+                  
+                  showInfo(
+                    'End Ad-Free Session',
+                    'Your ad-free session has been ended early.'
+                  );
+                } catch (error) {
+                  showError('Error', 'Failed to end ad-free session. Please try again.');
+                }
               }}
             >
               <Text style={[styles.endSessionText, { color: 'white' }]}>End Session Early</Text>

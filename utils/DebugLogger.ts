@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 class DebugLogger {
   private static instance: DebugLogger;
-  private isDebugMode: boolean = true; // Enable debug mode
+  private isDebugMode: boolean = false; // Disabled for production
   private logs: string[] = [];
 
   static getInstance(): DebugLogger {
@@ -21,16 +21,11 @@ class DebugLogger {
   log(tag: string, message: string, data?: any) {
     if (!this.isDebugMode) return;
     
-    const formattedMessage = this.formatMessage('LOG', tag, message, data);
+    const timestamp = new Date().toISOString();
+    const formattedMessage = `[${timestamp}] ${message}`;
     this.logs.push(formattedMessage);
     
-    // Console output for development
-    console.log(`🔵 ${formattedMessage}`);
-    
-    // Android native logging
-    if (Platform.OS === 'android') {
-      console.log(`[GOOGLE_AUTH_DEBUG] ${formattedMessage}`);
-    }
+    // Silent in production
   }
 
   error(tag: string, message: string, error?: any) {
@@ -40,46 +35,31 @@ class DebugLogger {
       name: error.name
     } : error;
     
-    const formattedMessage = this.formatMessage('ERROR', tag, message, errorData);
+    const timestamp = new Date().toISOString();
+    const formattedMessage = `[${timestamp}] ERROR: ${message}`;
     this.logs.push(formattedMessage);
     
-    // Console output for development
-    console.error(`🔴 ${formattedMessage}`);
-    
-    // Android native logging
-    if (Platform.OS === 'android') {
-      console.error(`[GOOGLE_AUTH_ERROR] ${formattedMessage}`);
-    }
+    // Silent in production
   }
 
   warn(tag: string, message: string, data?: any) {
     if (!this.isDebugMode) return;
     
-    const formattedMessage = this.formatMessage('WARN', tag, message, data);
+    const timestamp = new Date().toISOString();
+    const formattedMessage = `[${timestamp}] WARN: ${message}`;
     this.logs.push(formattedMessage);
     
-    // Console output for development
-    console.warn(`🟡 ${formattedMessage}`);
-    
-    // Android native logging
-    if (Platform.OS === 'android') {
-      console.warn(`[GOOGLE_AUTH_WARN] ${formattedMessage}`);
-    }
+    // Silent in production
   }
 
   info(tag: string, message: string, data?: any) {
     if (!this.isDebugMode) return;
     
-    const formattedMessage = this.formatMessage('INFO', tag, message, data);
+    const timestamp = new Date().toISOString();
+    const formattedMessage = `[${timestamp}] INFO: ${message}`;
     this.logs.push(formattedMessage);
     
-    // Console output for development
-    console.info(`🟢 ${formattedMessage}`);
-    
-    // Android native logging
-    if (Platform.OS === 'android') {
-      console.info(`[GOOGLE_AUTH_INFO] ${formattedMessage}`);
-    }
+    // Silent in production
   }
 
   getLogs(): string[] {

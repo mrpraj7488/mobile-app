@@ -17,8 +17,8 @@ Transform your YouTube channel from zero to hero with VidGro - the revolutionary
 ### 🔥 **Explosive Growth Features**
 
 #### **🎬 Watch & Earn System**
-- **Earn 1 coin per video** you watch (minimum 30 seconds)
-- **Daily earning potential**: Up to 50 coins for free users
+- **Earn coin per video** you watch (minimum 30 seconds)
+- **Daily earning potential**: Up to 1000 coins for free users
 - **Unlimited earnings** for VIP members
 - **Smart queue system** - Always fresh, engaging content to watch
 
@@ -29,7 +29,7 @@ Transform your YouTube channel from zero to hero with VidGro - the revolutionary
 - **Smart hold system** - 10-minute quality check before going live
 
 #### **💰 Multiple Ways to Earn Coins**
-1. **Watch Videos** - 1 coin per 30-second watch
+1. **Watch Videos** - earn coins
 2. **Refer Friends** - 400 coins per successful referral (both you and friend benefit!)
 3. **Free Coin Ads** - Watch 30-second ads for 100 coins (every 2 hours)
 4. **App Rating** - 100 coins for rating VidGro
@@ -58,9 +58,7 @@ Transform your YouTube channel from zero to hero with VidGro - the revolutionary
 ## 🚀 **How VidGro Transforms Your YouTube Journey**
 
 ### **Phase 1: Instant Momentum (Week 1)**
-- Sign up and get **200 welcome coins** instantly
-- Watch 10 videos daily = **70 coins per week**
-- Promote your first video with **50 views** for just 50 coins
+- Sign up and get **100 welcome coins** instantly
 - **Result**: Your video gets real engagement from interested viewers
 
 ### **Phase 2: Viral Acceleration (Week 2-4)**
@@ -135,8 +133,7 @@ Transform your YouTube channel from zero to hero with VidGro - the revolutionary
 
 ### **⚡ Quick Start (5 Minutes)**
 1. **Download VidGro** - Available on iOS and Android
-2. **Sign up FREE** - Use Google or email (get 200 welcome coins)
-3. **Watch 5 videos** - Earn your first 5 coins in minutes
+2. **Sign up FREE** - Use Google or email (get 100 welcome coins)
 4. **Promote your video** - Get 35 real views for just 35 coins
 5. **Watch your growth** - See real engagement within 24 hours
 
@@ -218,7 +215,7 @@ Transform your YouTube channel from zero to hero with VidGro - the revolutionary
 ## 🎊 **Limited Time Launch Offers**
 
 ### **🎁 New User Bonuses**
-- **200 Welcome Coins** - Start promoting immediately
+- **100 Welcome Coins** - Start promoting immediately
 - **First promotion 50% OFF** - Double your initial reach
 - **VIP trial available** - Experience premium features free
 - **Referral bonus doubled** - 400 coins per friend (limited time)
